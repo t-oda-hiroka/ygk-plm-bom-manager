@@ -19,18 +19,18 @@ app.secret_key = 'bom_management_enhanced_secret_key_2024'
 ENHANCED_DB_PATH = "bom_database_enhanced.db"
 bom_manager = BOMManager(ENHANCED_DB_PATH)
 
-# アイテムタイプの定数（Oracle連携強化）
+# アイテムタイプの定数（工程順）
 ITEM_TYPES = [
-    '原糸',
-    'PS糸', 
+    '完成品',
     '製紐糸',
+    'PS糸',
     '染色糸',
     '後PS糸',
     '巻き取り糸',
-    '完成品',
+    '原糸',
     '芯糸',
-    '梱包資材',
-    '成形品'
+    '成形品',
+    '梱包資材'
 ]
 
 # 用途タイプの定数
@@ -57,15 +57,32 @@ KNIT_TYPES = ['X8', 'X4', 'X9', 'X5', 'X16', 'X6丸', 'その他']
 
 
 def get_enhanced_items_by_type(item_type: str = 'all'):
-    """拡張属性を含むアイテム一覧を取得"""
+    """拡張属性を含むアイテム一覧を取得（工程順ソート）"""
     conn = sqlite3.connect(ENHANCED_DB_PATH)
     conn.row_factory = sqlite3.Row
     
     try:
         cursor = conn.cursor()
         
+        # 工程順のソート順序を定義
+        process_order_sql = """
+            CASE item_type
+                WHEN '完成品' THEN 1
+                WHEN '製紐糸' THEN 2
+                WHEN 'PS糸' THEN 3
+                WHEN '染色糸' THEN 4
+                WHEN '後PS糸' THEN 5
+                WHEN '巻き取り糸' THEN 6
+                WHEN '原糸' THEN 7
+                WHEN '芯糸' THEN 8
+                WHEN '成形品' THEN 9
+                WHEN '梱包資材' THEN 10
+                ELSE 11
+            END
+        """
+        
         if item_type == 'all':
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     item_id,
                     oracle_product_code,
@@ -81,12 +98,13 @@ def get_enhanced_items_by_type(item_type: str = 'all'):
                     created_at
                 FROM items
                 ORDER BY 
+                    {process_order_sql},
                     CASE WHEN oracle_product_code IS NOT NULL THEN 0 ELSE 1 END,
                     series_name,
                     item_name
             """)
         else:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     item_id,
                     oracle_product_code,
@@ -103,6 +121,7 @@ def get_enhanced_items_by_type(item_type: str = 'all'):
                 FROM items
                 WHERE item_type = ?
                 ORDER BY 
+                    {process_order_sql},
                     CASE WHEN oracle_product_code IS NOT NULL THEN 0 ELSE 1 END,
                     series_name,
                     item_name
