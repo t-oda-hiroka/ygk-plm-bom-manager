@@ -383,53 +383,300 @@ def register_routes(app, bom_manager):
     
     @app.route('/api/status')
     def api_status():
-        """システム状況API"""
-        conn = sqlite3.connect(app.config['DATABASE_PATH'])
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT COUNT(*) FROM items")
-        total_items = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM bom_components")
-        total_bom_components = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(DISTINCT item_type) FROM items")
-        item_type_count = cursor.fetchone()[0]
-        
-        conn.close()
-        
-        status_info = {
-            'environment': app.config['ENVIRONMENT'],
-            'version': app.config['VERSION'],
-            'database_path': app.config['DATABASE_PATH'],
-            'total_items': total_items,
-            'total_bom_components': total_bom_components,
-            'item_type_count': item_type_count,
-            'last_updated': datetime.now().isoformat()
-        }
-        
-        # デプロイメント情報の追加
-        status_info.update(create_deployment_info())
-        
-        return jsonify(status_info)
+        """APIステータス確認"""
+        try:
+            items = bom_manager.get_all_items()
+            return jsonify({
+                'status': 'ok',
+                'environment': app.config['ENVIRONMENT'],
+                'database': app.config['DATABASE_PATH'],
+                'items_count': len(items),
+                'sample_data_enabled': app.config.get('ENABLE_SAMPLE_DATA', False)
+            })
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
     
+    # =============================================================================
+    # ロット管理ルート
+    # =============================================================================
     
-    # ステージング環境のみのルート
-    if app.config.get('ENABLE_RESET_FUNCTION'):
+    @app.route('/lots')
+    def lots_list():
+        """ロット一覧画面"""
+        # フィルタリング用のパラメータを取得
+        item_type_filter = request.args.get('item_type', 'all')
+        status_filter = request.args.get('status', 'all')
+        process_filter = request.args.get('process', 'all')
+        search_query = request.args.get('search', '').strip()
+        
+        # ロット一覧取得
+        lots = bom_manager.get_all_lots(limit=200)
+        
+        # フィルタリング
+        if item_type_filter != 'all':
+            lots = [lot for lot in lots if lot['item_type'] == item_type_filter]
+        
+        if status_filter != 'all':
+            lots = [lot for lot in lots if lot['lot_status'] == status_filter]
+        
+        if process_filter != 'all':
+            lots = [lot for lot in lots if lot['process_code'] == process_filter]
+        
+        if search_query:
+            lots = [lot for lot in lots if 
+                   search_query.lower() in lot['lot_id'].lower() or
+                   search_query.lower() in lot['item_name'].lower() or
+                   search_query.lower() in lot.get('lot_name', '').lower()]
+        
+        # 統計情報計算
+        total_lots = len(lots)
+        active_lots = len([lot for lot in lots if lot['lot_status'] == 'active'])
+        consumed_lots = len([lot for lot in lots if lot['lot_status'] == 'consumed'])
+        
+        # 工程別統計
+        process_stats = {}
+        for lot in lots:
+            process = lot['process_code']
+            if process not in process_stats:
+                process_stats[process] = {'count': 0, 'process_name': lot['process_name']}
+            process_stats[process]['count'] += 1
+        
+        # フィルタ用選択肢取得
+        item_types = list(set([lot['item_type'] for lot in lots]))
+        
+        # プロセス一覧の重複削除（辞書をsetに入れられないため別の方法で実装）
+        processes_seen = set()
+        processes = []
+        for lot in lots:
+            process_code = lot['process_code']
+            if process_code not in processes_seen:
+                processes.append({'code': process_code, 'name': lot['process_name']})
+                processes_seen.add(process_code)
+        processes = sorted(processes, key=lambda x: x['code'])
+        
+        return render_template('lots/list.html',
+                             lots=lots,
+                             total_lots=total_lots,
+                             active_lots=active_lots,
+                             consumed_lots=consumed_lots,
+                             process_stats=process_stats,
+                             item_types=sorted(item_types),
+                             processes=processes,
+                             current_filters={
+                                 'item_type': item_type_filter,
+                                 'status': status_filter,
+                                 'process': process_filter,
+                                 'search': search_query
+                             })
+    
+    @app.route('/lots/create', methods=['GET', 'POST'])
+    def create_lot():
+        """ロット作成画面"""
+        if request.method == 'POST':
+            try:
+                # フォームデータ取得
+                item_id = request.form['item_id']
+                process_code = request.form['process_code']
+                planned_quantity = float(request.form['planned_quantity'])
+                production_date = request.form.get('production_date')
+                quality_grade = request.form.get('quality_grade', 'A')
+                
+                # オプション属性
+                kwargs = {}
+                if request.form.get('equipment_id'):
+                    kwargs['equipment_id'] = request.form['equipment_id']
+                if request.form.get('operator_id'):
+                    kwargs['operator_id'] = request.form['operator_id']
+                if request.form.get('location'):
+                    kwargs['location'] = request.form['location']
+                if request.form.get('measured_length'):
+                    kwargs['measured_length'] = float(request.form['measured_length'])
+                if request.form.get('measured_weight'):
+                    kwargs['measured_weight'] = float(request.form['measured_weight'])
+                if request.form.get('measurement_notes'):
+                    kwargs['measurement_notes'] = request.form['measurement_notes']
+                
+                # ロット作成
+                lot_id = bom_manager.create_lot(
+                    item_id=item_id,
+                    process_code=process_code,
+                    planned_quantity=planned_quantity,
+                    production_date=production_date,
+                    quality_grade=quality_grade,
+                    **kwargs
+                )
+                
+                flash(f'ロット {lot_id} を作成しました。', 'success')
+                return redirect(url_for('lot_details', lot_id=lot_id))
+                
+            except Exception as e:
+                flash(f'ロット作成エラー: {str(e)}', 'error')
+        
+        # GET: フォーム表示
+        items = bom_manager.get_all_items()
+        
+        # 工程ステップ取得
+        with sqlite3.connect(bom_manager.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT * FROM process_steps ORDER BY process_level")
+            processes = [dict(row) for row in cursor.fetchall()]
+        
+        # 品質グレード取得
+        with sqlite3.connect(bom_manager.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT * FROM quality_grades ORDER BY grade_code")
+            quality_grades = [dict(row) for row in cursor.fetchall()]
+        
+        return render_template('lots/create.html',
+                             items=items,
+                             processes=processes,
+                             quality_grades=quality_grades)
+    
+    @app.route('/lots/<lot_id>')
+    def lot_details(lot_id):
+        """ロット詳細画面"""
+        lot = bom_manager.get_lot(lot_id)
+        if not lot:
+            flash(f'ロット {lot_id} が見つかりません。', 'error')
+            return redirect(url_for('lots_list'))
+        
+        # 在庫移動履歴取得
+        with sqlite3.connect(bom_manager.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("""
+                SELECT * FROM inventory_transactions 
+                WHERE lot_id = ? 
+                ORDER BY transaction_date DESC
+            """, (lot_id,))
+            transactions = [dict(row) for row in cursor.fetchall()]
+        
+        # 系統図情報取得（親として）
+        with sqlite3.connect(bom_manager.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("""
+                SELECT lg.*, l.lot_id as child_lot, i.item_name as child_item_name
+                FROM lot_genealogy lg
+                JOIN lots l ON lg.child_lot_id = l.lot_id
+                JOIN items i ON l.item_id = i.item_id
+                WHERE lg.parent_lot_id = ?
+                ORDER BY lg.consumption_date DESC
+            """, (lot_id,))
+            consumed_materials = [dict(row) for row in cursor.fetchall()]
+        
+        # 系統図情報取得（子として）
+        with sqlite3.connect(bom_manager.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("""
+                SELECT lg.*, l.lot_id as parent_lot, i.item_name as parent_item_name
+                FROM lot_genealogy lg
+                JOIN lots l ON lg.parent_lot_id = l.lot_id
+                JOIN items i ON l.item_id = i.item_id
+                WHERE lg.child_lot_id = ?
+                ORDER BY lg.consumption_date DESC
+            """, (lot_id,))
+            used_in_lots = [dict(row) for row in cursor.fetchall()]
+        
+        return render_template('lots/details.html',
+                             lot=lot,
+                             transactions=transactions,
+                             consumed_materials=consumed_materials,
+                             used_in_lots=used_in_lots)
+    
+    @app.route('/lots/<lot_id>/genealogy')
+    def lot_genealogy(lot_id):
+        """ロット系統図画面"""
+        lot = bom_manager.get_lot(lot_id)
+        if not lot:
+            flash(f'ロット {lot_id} が見つかりません。', 'error')
+            return redirect(url_for('lots_list'))
+        
+        # 前方・後方トレース取得
+        forward_tree = bom_manager.get_lot_genealogy_tree(lot_id, 'forward')
+        backward_tree = bom_manager.get_lot_genealogy_tree(lot_id, 'backward')
+        
+        return render_template('lots/genealogy.html',
+                             lot=lot,
+                             forward_tree=forward_tree,
+                             backward_tree=backward_tree)
+    
+    @app.route('/lots/<lot_id>/consume', methods=['GET', 'POST'])
+    def consume_lot(lot_id):
+        """ロット消費（投入）画面"""
+        lot = bom_manager.get_lot(lot_id)
+        if not lot:
+            flash(f'ロット {lot_id} が見つかりません。', 'error')
+            return redirect(url_for('lots_list'))
+        
+        if request.method == 'POST':
+            try:
+                parent_lot_id = request.form['parent_lot_id']
+                consumed_quantity = float(request.form['consumed_quantity'])
+                usage_type = request.form.get('usage_type', 'Main Material')
+                notes = request.form.get('notes', '')
+                
+                # ロット系統図追加
+                success = bom_manager.add_lot_genealogy(
+                    parent_lot_id=parent_lot_id,
+                    child_lot_id=lot_id,
+                    consumed_quantity=consumed_quantity,
+                    usage_type=usage_type,
+                    notes=notes
+                )
+                
+                if success:
+                    flash(f'ロット {lot_id} を {parent_lot_id} に投入しました。', 'success')
+                    return redirect(url_for('lot_details', lot_id=parent_lot_id))
+                else:
+                    flash('ロット投入に失敗しました。', 'error')
+                    
+            except Exception as e:
+                flash(f'ロット投入エラー: {str(e)}', 'error')
+        
+        # 投入可能な親ロット候補を取得
+        # 現在のロットより後の工程のアクティブロットを取得
+        with sqlite3.connect(bom_manager.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("""
+                SELECT l.*, i.item_name, p.process_name, p.process_level
+                FROM lots l
+                JOIN items i ON l.item_id = i.item_id
+                JOIN process_steps p ON l.process_code = p.process_code
+                JOIN process_steps current_p ON current_p.process_code = ?
+                WHERE l.lot_status = 'active' 
+                  AND p.process_level > current_p.process_level
+                  AND l.current_quantity > 0
+                ORDER BY p.process_level, l.production_date DESC
+            """, (lot['process_code'],))
+            candidate_lots = [dict(row) for row in cursor.fetchall()]
+        
+        return render_template('lots/consume.html',
+                             lot=lot,
+                             candidate_lots=candidate_lots)
+    
+    # =============================================================================
+    # 管理・デバッグ機能（既存コード）
+    # =============================================================================
+    
+    # 環境別のデバッグ機能を追加
+    if app.config['ENVIRONMENT'] in ['DEVELOPMENT', 'STAGING']:
         @app.route('/reset_staging', methods=['POST'])
         def reset_staging():
-            """ステージング環境リセット"""
+            """ステージング環境のリセット（開発用）"""
+            if app.config['ENVIRONMENT'] != 'STAGING':
+                return jsonify({'error': 'この機能はステージング環境でのみ利用可能です'}), 403
+            
             try:
+                # データベースを削除して再作成
                 if os.path.exists(app.config['DATABASE_PATH']):
                     os.remove(app.config['DATABASE_PATH'])
                 
                 init_database(app)
-                flash('ステージング環境をリセットしました。', 'success')
-                
+                return jsonify({'message': 'ステージング環境をリセットしました'})
             except Exception as e:
-                flash(f'リセット中にエラーが発生しました: {str(e)}', 'error')
-            
-            return redirect(url_for('index'))
+                return jsonify({'error': f'リセット失敗: {str(e)}'}), 500
 
 
 def get_items_by_type(bom_manager, item_type):

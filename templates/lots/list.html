@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+
+{% block title %}ロット一覧 - BOM管理システム{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- ヘッダー -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-layer-group text-primary"></i>
+                        ロット管理
+                    </h1>
+                    <p class="text-muted mb-0">製造ロットの管理・トレーサビリティ</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('create_lot') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> 新規ロット作成
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 統計情報 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <div class="h4 text-primary mb-1">{{ total_lots }}</div>
+                    <div class="text-muted small">総ロット数</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <div class="h4 text-success mb-1">{{ active_lots }}</div>
+                    <div class="text-muted small">アクティブ</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-secondary">
+                <div class="card-body text-center">
+                    <div class="h4 text-secondary mb-1">{{ consumed_lots }}</div>
+                    <div class="text-muted small">消費済み</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <div class="h4 text-info mb-1">{{ process_stats|length }}</div>
+                    <div class="text-muted small">工程数</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- フィルター -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-filter"></i> フィルター
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-2">
+                    <label for="item_type" class="form-label">アイテム種別</label>
+                    <select name="item_type" id="item_type" class="form-select">
+                        <option value="all" {% if current_filters.item_type == 'all' %}selected{% endif %}>全て</option>
+                        {% for item_type in item_types %}
+                        <option value="{{ item_type }}" {% if current_filters.item_type == item_type %}selected{% endif %}>
+                            {{ item_type }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="status" class="form-label">ステータス</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="all" {% if current_filters.status == 'all' %}selected{% endif %}>全て</option>
+                        <option value="active" {% if current_filters.status == 'active' %}selected{% endif %}>アクティブ</option>
+                        <option value="consumed" {% if current_filters.status == 'consumed' %}selected{% endif %}>消費済み</option>
+                        <option value="scrapped" {% if current_filters.status == 'scrapped' %}selected{% endif %}>廃棄</option>
+                        <option value="reworked" {% if current_filters.status == 'reworked' %}selected{% endif %}>リワーク</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="process" class="form-label">工程</label>
+                    <select name="process" id="process" class="form-select">
+                        <option value="all" {% if current_filters.process == 'all' %}selected{% endif %}>全て</option>
+                        {% for process in processes %}
+                        <option value="{{ process.code }}" {% if current_filters.process == process.code %}selected{% endif %}>
+                            {{ process.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="search" class="form-label">検索</label>
+                    <input type="text" name="search" id="search" class="form-control" 
+                           placeholder="ロットID、アイテム名で検索..." 
+                           value="{{ current_filters.search }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="fas fa-search"></i> 検索
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ロット一覧テーブル -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">ロット一覧 ({{ lots|length }}件)</h5>
+            <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary" onclick="exportToCSV()">
+                    <i class="fas fa-download"></i> CSV出力
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            {% if lots %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="lotsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ロットID</th>
+                            <th>アイテム名</th>
+                            <th>工程</th>
+                            <th>製造日</th>
+                            <th>品質</th>
+                            <th>現在数量</th>
+                            <th>ステータス</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lot in lots %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('lot_details', lot_id=lot.lot_id) }}" 
+                                   class="text-decoration-none fw-bold">
+                                    {{ lot.lot_id }}
+                                </a>
+                            </td>
+                            <td>
+                                <div class="small text-muted">{{ lot.item_type }}</div>
+                                {{ lot.item_name }}
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ lot.process_name }}</span>
+                            </td>
+                            <td>{{ lot.production_date }}</td>
+                            <td>
+                                {% if lot.quality_grade == 'A' %}
+                                    <span class="badge bg-success">{{ lot.grade_name }}</span>
+                                {% elif lot.quality_grade == 'A0' %}
+                                    <span class="badge bg-warning">{{ lot.grade_name }}</span>
+                                {% elif lot.quality_grade == 'B' %}
+                                    <span class="badge bg-secondary">{{ lot.grade_name }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ lot.grade_name }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="fw-bold">{{ "%.2f"|format(lot.current_quantity) }}</span>
+                                    <small class="text-muted ms-1">{{ lot.unit_of_measure }}</small>
+                                </div>
+                                {% if lot.accuracy_type %}
+                                <small class="text-muted">({{ lot.accuracy_type }})</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if lot.lot_status == 'active' %}
+                                    <span class="badge bg-success">アクティブ</span>
+                                {% elif lot.lot_status == 'consumed' %}
+                                    <span class="badge bg-secondary">消費済み</span>
+                                {% elif lot.lot_status == 'scrapped' %}
+                                    <span class="badge bg-danger">廃棄</span>
+                                {% elif lot.lot_status == 'reworked' %}
+                                    <span class="badge bg-warning">リワーク</span>
+                                {% else %}
+                                    <span class="badge bg-light text-dark">{{ lot.lot_status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ url_for('lot_details', lot_id=lot.lot_id) }}" 
+                                       class="btn btn-outline-primary btn-sm" title="詳細">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('lot_genealogy', lot_id=lot.lot_id) }}" 
+                                       class="btn btn-outline-info btn-sm" title="系統図">
+                                        <i class="fas fa-sitemap"></i>
+                                    </a>
+                                    {% if lot.lot_status == 'active' and lot.current_quantity > 0 %}
+                                    <a href="{{ url_for('consume_lot', lot_id=lot.lot_id) }}" 
+                                       class="btn btn-outline-warning btn-sm" title="投入">
+                                        <i class="fas fa-arrow-right"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-layer-group fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">ロットが見つかりません</h5>
+                <p class="text-muted">
+                    {% if current_filters.search or current_filters.item_type != 'all' or current_filters.status != 'all' or current_filters.process != 'all' %}
+                        検索条件を変更するか、<a href="{{ url_for('lots_list') }}">フィルターをクリア</a>してください。
+                    {% else %}
+                        <a href="{{ url_for('create_lot') }}" class="btn btn-primary">最初のロットを作成</a>
+                    {% endif %}
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 工程別統計 -->
+    {% if process_stats %}
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-chart-bar"></i> 工程別統計
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for process_code, stats in process_stats.items() %}
+                <div class="col-md-3 mb-2">
+                    <div class="border rounded p-2">
+                        <div class="fw-bold">{{ stats.process_name }}</div>
+                        <div class="text-muted">{{ stats.count }}ロット</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// CSV出力機能
+function exportToCSV() {
+    const table = document.getElementById('lotsTable');
+    const rows = table.querySelectorAll('tr');
+    
+    let csvContent = '';
+    
+    // ヘッダー行
+    const headers = ['ロットID', 'アイテム名', '工程', '製造日', '品質', '現在数量', 'ステータス'];
+    csvContent += headers.join(',') + '\n';
+    
+    // データ行
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const cells = row.querySelectorAll('td');
+        const rowData = [];
+        
+        for (let j = 0; j < cells.length - 1; j++) { // 最後の操作列は除く
+            rowData.push('"' + cells[j].textContent.trim().replace(/"/g, '""') + '"');
+        }
+        
+        csvContent += rowData.join(',') + '\n';
+    }
+    
+    // ダウンロード
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'lots_' + new Date().toISOString().split('T')[0] + '.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// テーブル検索機能
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            // リアルタイム検索機能は必要に応じて実装
+        });
+    }
+});
+</script>
+{% endblock %} 

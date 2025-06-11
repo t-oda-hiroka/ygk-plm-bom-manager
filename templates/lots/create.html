@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+
+{% block title %}ロット作成 - BOM管理システム{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- ヘッダー -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-plus-circle text-primary"></i>
+                        新規ロット作成
+                    </h1>
+                    <p class="text-muted mb-0">製造ロットの新規作成</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('lots_list') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> ロット一覧に戻る
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ロット作成フォーム -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit"></i> ロット基本情報
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="createLotForm">
+                        <!-- 基本情報 -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="item_id" class="form-label required">アイテム</label>
+                                <select name="item_id" id="item_id" class="form-select" required>
+                                    <option value="">アイテムを選択してください</option>
+                                    {% for item in items %}
+                                    <option value="{{ item.item_id }}" 
+                                            data-type="{{ item.item_type }}" 
+                                            data-unit="{{ item.unit_of_measure }}">
+                                        {{ item.item_name }} ({{ item.item_type }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">製造するアイテムを選択してください</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="process_code" class="form-label required">工程</label>
+                                <select name="process_code" id="process_code" class="form-select" required>
+                                    <option value="">工程を選択してください</option>
+                                    {% for process in processes %}
+                                    <option value="{{ process.process_code }}" 
+                                            data-level="{{ process.process_level }}"
+                                            data-unit="{{ process.typical_unit }}"
+                                            data-accuracy="{{ process.accuracy_type }}">
+                                        {{ process.process_name }} (L{{ process.process_level }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">
+                                    <span id="processInfo"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 数量・日時情報 -->
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <label for="planned_quantity" class="form-label required">計画数量</label>
+                                <div class="input-group">
+                                    <input type="number" name="planned_quantity" id="planned_quantity" 
+                                           class="form-control" step="0.01" min="0" required>
+                                    <span class="input-group-text" id="quantityUnit">-</span>
+                                </div>
+                                <div class="form-text">製造予定数量を入力してください</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="production_date" class="form-label">製造日</label>
+                                <input type="date" name="production_date" id="production_date" 
+                                       class="form-control">
+                                <div class="form-text">未入力の場合は今日の日付が使用されます</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="quality_grade" class="form-label">品質グレード</label>
+                                <select name="quality_grade" id="quality_grade" class="form-select">
+                                    {% for grade in quality_grades %}
+                                    <option value="{{ grade.grade_code }}" 
+                                            {% if grade.grade_code == 'A' %}selected{% endif %}
+                                            data-description="{{ grade.grade_description }}">
+                                        {{ grade.grade_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text" id="gradeDescription">規格内の標準品質</div>
+                            </div>
+                        </div>
+
+                        <!-- 製造情報 -->
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h6 class="mb-0">製造情報（オプション）</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label for="equipment_id" class="form-label">使用設備ID</label>
+                                        <input type="text" name="equipment_id" id="equipment_id" 
+                                               class="form-control" placeholder="例: PS-001">
+                                        <div class="form-text">使用する設備の識別子</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="operator_id" class="form-label">作業者ID</label>
+                                        <input type="text" name="operator_id" id="operator_id" 
+                                               class="form-control" placeholder="例: OP001">
+                                        <div class="form-text">担当作業者の識別子</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="location" class="form-label">保管場所</label>
+                                        <input type="text" name="location" id="location" 
+                                               class="form-control" placeholder="例: 工場A-棚1">
+                                        <div class="form-text">ロットの保管場所</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 実測情報 -->
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h6 class="mb-0">実測情報（オプション）</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label for="measured_length" class="form-label">実測長</label>
+                                        <div class="input-group">
+                                            <input type="number" name="measured_length" id="measured_length" 
+                                                   class="form-control" step="0.1" min="0" placeholder="0.0">
+                                            <span class="input-group-text">m</span>
+                                        </div>
+                                        <div class="form-text">センサーによる実測長</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="measured_weight" class="form-label">実測重量</label>
+                                        <div class="input-group">
+                                            <input type="number" name="measured_weight" id="measured_weight" 
+                                                   class="form-control" step="0.001" min="0" placeholder="0.000">
+                                            <span class="input-group-text">kg</span>
+                                        </div>
+                                        <div class="form-text">計量による実測重量</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="measurement_notes" class="form-label">測定メモ</label>
+                                        <textarea name="measurement_notes" id="measurement_notes" 
+                                                  class="form-control" rows="2" 
+                                                  placeholder="測定時の特記事項など"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- アクションボタン -->
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{{ url_for('lots_list') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> キャンセル
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> ロット作成
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- サイドバー：参考情報 -->
+        <div class="col-lg-4">
+            <!-- ロットID予定 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle"></i> ロットID生成予定
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="text-center">
+                        <div class="h4 mb-1" id="previewLotId">-</div>
+                        <div class="text-muted small">自動生成されるロットID</div>
+                    </div>
+                    <hr>
+                    <div class="small">
+                        <strong>命名規則:</strong><br>
+                        YY + MM + 工程コード + 連番3桁<br>
+                        <span class="text-muted">例: 2501P001（25年1月、PS工程、1番目）</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 工程レベル説明 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-layer-group"></i> 工程レベル
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for process in processes %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>L{{ process.process_level }}</strong>
+                                <span class="ms-2">{{ process.process_name }}</span>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-secondary">{{ process.typical_unit }}</span>
+                                <br>
+                                <small class="text-muted">{{ process.accuracy_type }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 品質グレード説明 -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-star"></i> 品質グレード
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for grade in quality_grades %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <strong>{{ grade.grade_name }}</strong>
+                                {% if grade.grade_code == 'A' %}
+                                    <span class="badge bg-success">{{ grade.grade_code }}</span>
+                                {% elif grade.grade_code == 'A0' %}
+                                    <span class="badge bg-warning">{{ grade.grade_code }}</span>
+                                {% elif grade.grade_code == 'B' %}
+                                    <span class="badge bg-secondary">{{ grade.grade_code }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ grade.grade_code }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="small text-muted">
+                                {{ grade.grade_description }}<br>
+                                <em>{{ grade.processing_rule }}</em>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const processSelect = document.getElementById('process_code');
+    const itemSelect = document.getElementById('item_id');
+    const qualitySelect = document.getElementById('quality_grade');
+    const quantityUnit = document.getElementById('quantityUnit');
+    const previewLotId = document.getElementById('previewLotId');
+    const processInfo = document.getElementById('processInfo');
+    const gradeDescription = document.getElementById('gradeDescription');
+    const productionDate = document.getElementById('production_date');
+
+    // 今日の日付をデフォルトに設定
+    if (!productionDate.value) {
+        const today = new Date().toISOString().split('T')[0];
+        productionDate.value = today;
+    }
+
+    // 工程選択時の処理
+    processSelect.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        
+        if (selectedOption.value) {
+            const unit = selectedOption.dataset.unit;
+            const accuracy = selectedOption.dataset.accuracy;
+            const level = selectedOption.dataset.level;
+            
+            quantityUnit.textContent = unit;
+            processInfo.innerHTML = `<i class="fas fa-info-circle text-info"></i> 
+                                   レベル${level} | 標準単位: ${unit} | 確定度: ${accuracy}`;
+            
+            updateLotIdPreview();
+        } else {
+            quantityUnit.textContent = '-';
+            processInfo.innerHTML = '';
+            previewLotId.textContent = '-';
+        }
+    });
+
+    // アイテム選択時の処理
+    itemSelect.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        
+        if (selectedOption.value) {
+            const itemUnit = selectedOption.dataset.unit;
+            // アイテムの単位を参考情報として表示（必要に応じて）
+        }
+    });
+
+    // 品質グレード選択時の処理
+    qualitySelect.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        
+        if (selectedOption.value) {
+            const description = selectedOption.dataset.description;
+            gradeDescription.textContent = description;
+        }
+    });
+
+    // 製造日変更時の処理
+    productionDate.addEventListener('change', updateLotIdPreview);
+
+    // ロットIDプレビュー更新
+    function updateLotIdPreview() {
+        const processCode = processSelect.value;
+        const date = productionDate.value;
+        
+        if (processCode && date) {
+            const dateObj = new Date(date);
+            const yy = dateObj.getFullYear().toString().slice(-2);
+            const mm = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+            
+            // 簡易的なプレビュー（実際の連番は作成時に決定）
+            previewLotId.textContent = `${yy}${mm}${processCode}XXX`;
+        } else {
+            previewLotId.textContent = '-';
+        }
+    }
+
+    // フォーム検証
+    document.getElementById('createLotForm').addEventListener('submit', function(e) {
+        const itemId = itemSelect.value;
+        const processCode = processSelect.value;
+        const quantity = document.getElementById('planned_quantity').value;
+
+        if (!itemId || !processCode || !quantity || parseFloat(quantity) <= 0) {
+            e.preventDefault();
+            alert('必須項目を正しく入力してください。');
+            return false;
+        }
+
+        // 確認ダイアログ
+        const itemName = itemSelect.options[itemSelect.selectedIndex].text;
+        const processName = processSelect.options[processSelect.selectedIndex].text;
+        
+        if (!confirm(`以下の内容でロットを作成しますか？\n\nアイテム: ${itemName}\n工程: ${processName}\n数量: ${quantity}`)) {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    // 初期化時の処理
+    if (qualitySelect.value) {
+        qualitySelect.dispatchEvent(new Event('change'));
+    }
+});
+</script>
+{% endblock %} 
