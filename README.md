@@ -163,23 +163,47 @@ curl http://192.168.212.112:5003/api/status
 
 ## ファイル構成
 
-### 統合環境システム
+### 🚀 統合環境システム（メインシステム）
 - `app_unified.py`: 統合Flaskアプリケーション（メイン）
 - `config.py`: 環境別設定管理
 - `deploy.py`: 自動デプロイメントシステム
 - `start_unified.sh`: 統一環境起動スクリプト
 
-### コアシステム
+### 💾 コアシステム
 - `bom_manager.py`: BOM管理システムのメインクラス
 - `schema_enhanced.sql`: 拡張データベーススキーマ
 - `requirements.txt`: 依存関係（Flask等）
+- `bom_database_dev.db`: 開発環境データベース
+- `bom_database_staging.db`: ステージング環境データベース
 
-### レガシーファイル（参考用）
+### 🔧 ツール・ユーティリティ (`tools/`)
+- `update_item_prefix_by_type.py`: アイテムタイプ別プレフィックス更新
+- `oracle_connection_test.py`: Oracle DB接続テスト
+- `oracle_schema_analysis.py`: Oracleスキーマ分析
+- `oracle_bom_analysis.py`: Oracle BOM構造分析
+- `oracle_data_check.py`: データ整合性チェック
+- その他Oracle関連ツール群
+
+### 🧪 作業用・実験ファイル (`working/`)
+- `create_realistic_bom.py`: リアルBOM構造作成（基本版）
+- `create_advanced_bom.py`: 高度BOM構造作成（完全版）
+- `test_basic_functionality.py`: 基本機能テスト
+- `test_oracle_integration.py`: Oracle連携テスト
+- `test_oracle_integration_diverse.py`: 多様パターンテスト
+
+### 📚 レガシーファイル (`legacy/`)
 - `app.py`: 旧版シンプルアプリケーション
-- `app_enhanced.py`: 旧版拡張アプリケーション
+- `app_enhanced.py`: 旧版Oracle連携アプリケーション
 - `app_staging.py`: 旧版ステージングアプリケーション
+- `bom_database.db`, `bom_database_enhanced.db`: 旧版データベース
+- `schema.sql`: 旧版データベーススキーマ
+- その他旧ファイル群
 
-### テンプレート
+### 💾 バックアップ (`backups/`)
+- `backup_development_*.db`: 開発環境バックアップ
+- `deployment_manifest_*.json`: デプロイメント履歴
+
+### 🌐 テンプレート
 - `templates/`: HTMLテンプレートファイル
   - `base.html`: ベーステンプレート（環境表示対応）
   - `index.html`: アイテム一覧ページ（ソート機能付き）
