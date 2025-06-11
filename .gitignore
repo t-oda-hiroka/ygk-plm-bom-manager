@@ -60,4 +60,6 @@ Thumbs.db
 # Oracle specific
 tnsnames.ora
 sqlnet.ora
-wallet/ 
+wallet/ # Deployment artifacts
+deployment_manifest_*.json
+backup_*.db

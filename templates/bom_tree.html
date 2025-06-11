@@ -43,7 +43,23 @@
                 {% endfor %}
                 <span class="text-muted">└─</span>
                 <span class="bom-tree-quantity">{{ component.quantity }} {{ component.item.unit_of_measure }}</span>
-                <span class="text-muted">({{ component.usage_type }})</span>
+                <span class="ms-2">
+                    {% if component.usage_type == 'Main Material' %}
+                        <span class="badge bg-primary badge-sm">主材料</span>
+                    {% elif component.usage_type == 'Main Braid Thread' %}
+                        <span class="badge bg-success badge-sm">主編み糸</span>
+                    {% elif component.usage_type == 'Core Thread' %}
+                        <span class="badge bg-warning text-dark badge-sm">芯糸</span>
+                    {% elif component.usage_type == 'Packaging' %}
+                        <span class="badge bg-info badge-sm">梱包材</span>
+                    {% elif component.usage_type == 'Container' %}
+                        <span class="badge bg-secondary badge-sm">容器</span>
+                    {% elif component.usage_type == 'Process Material' %}
+                        <span class="badge bg-dark badge-sm">工程材</span>
+                    {% else %}
+                        <span class="badge bg-light text-dark badge-sm">{{ component.usage_type }}</span>
+                    {% endif %}
+                </span>
             </div>
             {{ render_bom_tree(component, depth + 2) }}
         {% endfor %}
@@ -65,7 +81,21 @@
                 <strong>{{ component.quantity }}</strong> {{ component.item.unit_of_measure }}
             </td>
             <td>
-                <span class="badge bg-outline-secondary">{{ component.usage_type }}</span>
+                {% if component.usage_type == 'Main Material' %}
+                    <span class="badge bg-primary">主材料</span>
+                {% elif component.usage_type == 'Main Braid Thread' %}
+                    <span class="badge bg-success">主編み糸</span>
+                {% elif component.usage_type == 'Core Thread' %}
+                    <span class="badge bg-warning text-dark">芯糸</span>
+                {% elif component.usage_type == 'Packaging' %}
+                    <span class="badge bg-info">梱包材</span>
+                {% elif component.usage_type == 'Container' %}
+                    <span class="badge bg-secondary">容器</span>
+                {% elif component.usage_type == 'Process Material' %}
+                    <span class="badge bg-dark">工程材</span>
+                {% else %}
+                    <span class="badge bg-light text-dark">{{ component.usage_type }}</span>
+                {% endif %}
             </td>
         </tr>
         {{ render_material_summary(component, level + 1) }}
@@ -191,11 +221,74 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+/* BOM用途バッジのスタイル */
+.badge-sm {
+    font-size: 0.7em;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+/* BOMツリーのスタイリング */
+.bom-tree {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    border-left: 4px solid #007bff;
+}
+
+.bom-tree-item {
+    margin: 8px 0;
+    font-family: 'Courier New', monospace;
+    line-height: 1.6;
+}
+
+.bom-tree-parent {
+    font-weight: bold;
+    color: #495057;
+    font-size: 1.1em;
+}
+
+.bom-tree-component {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.bom-tree-quantity {
+    font-weight: bold;
+    color: #28a745;
+    margin-left: 8px;
+}
+
+/* 材料集計表のスタイル */
+.table-responsive {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.table th {
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.item-type-badge {
+    font-size: 0.75em;
+}
+</style>
+
 <script>
 // BOMツリーの展開/折りたたみ機能
 document.addEventListener('DOMContentLoaded', function() {
     // 将来的にツリーノードのクリックで展開/折りたたみ機能を追加可能
     console.log('BOM Tree loaded');
+    
+    // バッジのツールチップ機能（オプション）
+    const badges = document.querySelectorAll('.badge-sm');
+    badges.forEach(badge => {
+        badge.style.cursor = 'default';
+    });
 });
 </script>
 {% endblock %} 

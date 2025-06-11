@@ -147,6 +147,12 @@ def index():
     # アイテム一覧を取得
     items = get_enhanced_items_by_type(item_type_filter)
     
+    # タブ用の統計情報を取得（全アイテムから）
+    all_items = get_enhanced_items_by_type('all')
+    item_type_stats = {}
+    for item_type in ITEM_TYPES:
+        item_type_stats[item_type] = len([item for item in all_items if item.get('item_type') == item_type])
+    
     # 検索フィルタリング
     if search_query:
         filtered_items = []
@@ -164,7 +170,7 @@ def index():
         items = filtered_items
     
     # Oracle連携製品数をカウント
-    oracle_items_count = len([item for item in items if item.get('oracle_product_code')])
+    oracle_items_count = len([item for item in all_items if item.get('oracle_product_code')])
     
     return render_template('index.html', 
                          items=items,
@@ -172,7 +178,8 @@ def index():
                          current_filter=item_type_filter,
                          search_query=search_query,
                          oracle_items_count=oracle_items_count,
-                         total_items_count=len(items))
+                         total_items_count=len(all_items),
+                         item_type_stats=item_type_stats)
 
 
 @app.route('/oracle_sync')

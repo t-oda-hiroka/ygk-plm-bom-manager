@@ -216,6 +216,26 @@ class BOMManager:
         
         return expand_bom(parent_item_id)
     
+    def get_all_items(self) -> List[Dict[str, Any]]:
+        """
+        すべてのアイテム一覧を取得します
+        
+        Returns:
+            List[Dict]: アイテム情報のリスト
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT * FROM items ORDER BY item_type, item_name")
+            
+            items = []
+            for row in cursor.fetchall():
+                item = dict(row)
+                if item['additional_attributes']:
+                    item['additional_attributes'] = json.loads(item['additional_attributes'])
+                items.append(item)
+            
+            return items
+    
     def get_all_items_by_type(self, item_type: str) -> List[Dict[str, Any]]:
         """
         指定されたタイプのアイテム一覧を取得します

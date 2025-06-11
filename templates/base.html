@@ -82,14 +82,68 @@
         .required {
             color: #dc3545;
         }
+        
+        /* ステージング環境用のスタイル */
+        .staging-banner {
+            background: linear-gradient(45deg, #ff9800, #f57c00);
+            color: white;
+            padding: 8px 0;
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 0;
+            font-size: 14px;
+        }
+        
+        .environment-badge {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: #ff9800;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .staging-navbar {
+            background-color: #dc3545 !important;
+        }
+        
+        .staging-stats {
+            background: linear-gradient(135deg, #ffc107, #fd7e14);
+            color: white;
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
     </style>
-</head>
+  </head>
 <body>
+    <!-- ステージング環境識別バッジ -->
+    {% if is_staging %}
+    <div class="environment-badge">
+        <i class="fas fa-flask"></i> {{ environment }} {{ version }}
+    </div>
+    {% endif %}
+
+    <!-- ステージング環境バナー -->
+    {% if is_staging %}
+    <div class="staging-banner">
+        <i class="fas fa-exclamation-triangle"></i> 
+        社内ステージング環境 - プロトタイプ検証用
+        <i class="fas fa-exclamation-triangle"></i>
+    </div>
+    {% endif %}
+
     <!-- ナビゲーションバー -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark {% if is_staging %}staging-navbar{% else %}bg-dark{% endif %}">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('index') }}">
                 <i class="fas fa-cogs"></i> 釣り糸製造BOM管理システム
+                {% if is_staging %} [{{ environment }}]{% endif %}
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -114,6 +168,24 @@
                         </a>
                     </li>
                 </ul>
+                {% if is_staging %}
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('api_status') }}" target="_blank">
+                            <i class="fas fa-info-circle"></i> システム状況
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <form method="POST" action="{{ url_for('reset_staging') }}" style="display: inline;">
+                            <button type="submit" class="btn btn-warning btn-sm" 
+                                    onclick="return confirm('ステージング環境をリセットしますか？')"
+                                    style="margin-top: 4px;">
+                                <i class="fas fa-redo"></i> リセット
+                            </button>
+                        </form>
+                    </li>
+                </ul>
+                {% endif %}
             </div>
         </div>
     </nav>
