@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}BOM構成追加 - 釣り糸製造BOM管理システム{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-project-diagram"></i> BOM構成を追加
+                </h4>
+            </div>
+            
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="parent_item_id" class="form-label">
+                                    親アイテム <span class="required">*</span>
+                                </label>
+                                <select class="form-select" id="parent_item_id" name="parent_item_id" required>
+                                    <option value="">選択してください</option>
+                                    {% for item in all_items %}
+                                        <option value="{{ item.item_id }}" 
+                                                {% if request.args.get('parent_item_id') == item.item_id %}selected{% endif %}>
+                                            {{ item.item_name }} ({{ item.item_id }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">BOM構成を追加したい親アイテムを選択</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="component_item_id" class="form-label">
+                                    構成部品アイテム <span class="required">*</span>
+                                </label>
+                                <select class="form-select" id="component_item_id" name="component_item_id" required>
+                                    <option value="">選択してください</option>
+                                    {% for item in all_items %}
+                                        <option value="{{ item.item_id }}">
+                                            {{ item.item_name }} ({{ item.item_id }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">親アイテムの構成部品となるアイテムを選択</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="quantity" class="form-label">
+                                    数量 <span class="required">*</span>
+                                </label>
+                                <input type="number" step="0.1" class="form-control" id="quantity" name="quantity" 
+                                       placeholder="例: 1.0" min="0.1" required>
+                                <div class="form-text">親アイテム1単位に必要な構成部品の数量</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="usage_type" class="form-label">
+                                    用途タイプ <span class="required">*</span>
+                                </label>
+                                <select class="form-select" id="usage_type" name="usage_type" required>
+                                    <option value="">選択してください</option>
+                                    {% for usage_type in usage_types %}
+                                        <option value="{{ usage_type }}">{{ usage_type }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">構成部品の用途を選択</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 用途タイプの説明 -->
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> 用途タイプの説明</h6>
+                        <ul class="mb-0">
+                            <li><strong>Main Material:</strong> 主材料（原糸→PS糸など）</li>
+                            <li><strong>Main Braid Thread:</strong> 主編み糸（製紐工程で使用する編み糸）</li>
+                            <li><strong>Core Thread:</strong> 芯糸（製紐工程で使用する芯糸）</li>
+                            <li><strong>Packaging:</strong> 梱包材（台紙、ダンボール、シールなど）</li>
+                            <li><strong>Container:</strong> 容器（スプール、ボビンなど）</li>
+                            <li><strong>Process Material:</strong> 工程材料（その他の工程で使用する材料）</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- 選択されたアイテムの詳細表示エリア -->
+                    <div class="row" id="item-details" style="display: none;">
+                        <div class="col-md-6">
+                            <div class="card border-primary">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0">親アイテム詳細</h6>
+                                </div>
+                                <div class="card-body" id="parent-item-details">
+                                    <!-- JavaScript で動的に更新 -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0">構成部品アイテム詳細</h6>
+                                </div>
+                                <div class="card-body" id="component-item-details">
+                                    <!-- JavaScript で動的に更新 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ボタン -->
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> 戻る
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> 追加
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// アイテム詳細情報（JavaScript で管理）
+const itemsData = [
+    {% for item in all_items %}
+    {
+        id: "{{ item.item_id|e }}",
+        name: "{{ item.item_name|e }}",
+        type: "{{ item.item_type|e }}",
+        unit: "{{ item.unit_of_measure|e }}",
+        material: "{{ (item.material_type or '')|e }}",
+        denier: {{ item.denier if item.denier else 'null' }},
+        ps_ratio: {{ item.ps_ratio if item.ps_ratio else 'null' }},
+        twist_type: "{{ (item.twist_type or '')|e }}",
+        color: "{{ (item.color or '')|e }}",
+        has_core: {{ 'true' if item.has_core else 'false' }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+// アイテム詳細を表示する関数
+function displayItemDetails(itemId, targetElementId) {
+    const item = itemsData.find(i => i.id === itemId);
+    const element = document.getElementById(targetElementId);
+    
+    if (!item || !element) {
+        element.innerHTML = '<p class="text-muted">アイテムが選択されていません</p>';
+        return;
+    }
+    
+    let html = `
+        <p><strong>名前:</strong> ${item.name}</p>
+        <p><strong>タイプ:</strong> <span class="badge bg-info">${item.type}</span></p>
+        <p><strong>単位:</strong> ${item.unit}</p>
+    `;
+    
+    if (item.material) {
+        html += `<p><strong>材質:</strong> <span class="badge bg-secondary">${item.material}</span></p>`;
+    }
+    
+    if (item.denier) {
+        html += `<p><strong>デニール:</strong> ${item.denier}d</p>`;
+    }
+    
+    if (item.ps_ratio) {
+        html += `<p><strong>PS値:</strong> ${item.ps_ratio}</p>`;
+    }
+    
+    if (item.twist_type) {
+        html += `<p><strong>撚り:</strong> <span class="badge bg-warning text-dark">${item.twist_type}</span></p>`;
+    }
+    
+    if (item.color) {
+        html += `<p><strong>色:</strong> ${item.color}</p>`;
+    }
+    
+    if (item.has_core) {
+        html += `<p><span class="badge bg-warning text-dark">芯糸あり</span></p>`;
+    }
+    
+    element.innerHTML = html;
+}
+
+// イベントリスナーの設定
+document.addEventListener('DOMContentLoaded', function() {
+    const parentSelect = document.getElementById('parent_item_id');
+    const componentSelect = document.getElementById('component_item_id');
+    const detailsDiv = document.getElementById('item-details');
+    
+    function updateDisplay() {
+        const parentId = parentSelect.value;
+        const componentId = componentSelect.value;
+        
+        if (parentId || componentId) {
+            detailsDiv.style.display = 'block';
+            displayItemDetails(parentId, 'parent-item-details');
+            displayItemDetails(componentId, 'component-item-details');
+        } else {
+            detailsDiv.style.display = 'none';
+        }
+    }
+    
+    parentSelect.addEventListener('change', updateDisplay);
+    componentSelect.addEventListener('change', updateDisplay);
+    
+    // 初期表示
+    updateDisplay();
+});
+</script>
+{% endblock %} 

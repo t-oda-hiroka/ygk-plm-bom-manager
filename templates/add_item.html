@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}アイテム追加 - 釣り糸製造BOM管理システム{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-plus"></i> 新しいアイテムを追加
+                </h4>
+            </div>
+            
+            <div class="card-body">
+                <form method="POST">
+                    <!-- 基本情報 -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="item_id" class="form-label">
+                                    アイテムID <span class="required">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="item_id" name="item_id" 
+                                       placeholder="例: RAW_EN_150D" required>
+                                <div class="form-text">英数字とアンダースコアのみ使用可</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="item_name" class="form-label">
+                                    アイテム名 <span class="required">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="item_name" name="item_name" 
+                                       placeholder="例: EN 原糸 150デニール" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="item_type" class="form-label">
+                                    アイテムタイプ <span class="required">*</span>
+                                </label>
+                                <select class="form-select" id="item_type" name="item_type" required>
+                                    <option value="">選択してください</option>
+                                    {% for item_type in item_types %}
+                                        <option value="{{ item_type }}">{{ item_type }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="unit_of_measure" class="form-label">
+                                    数量単位 <span class="required">*</span>
+                                </label>
+                                <select class="form-select" id="unit_of_measure" name="unit_of_measure" required>
+                                    <option value="">選択してください</option>
+                                    {% for unit in units %}
+                                        <option value="{{ unit }}">{{ unit }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 材料属性 -->
+                    <h5 class="mt-4 mb-3">材料属性</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="material_type" class="form-label">材質</label>
+                                <select class="form-select" id="material_type" name="material_type">
+                                    <option value="">選択してください</option>
+                                    {% for material in material_types %}
+                                        <option value="{{ material }}">{{ material }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="denier" class="form-label">デニール</label>
+                                <input type="number" class="form-control" id="denier" name="denier" 
+                                       placeholder="例: 150" min="1">
+                                <div class="form-text">数値のみ入力</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="ps_ratio" class="form-label">PS値</label>
+                                <input type="number" step="0.1" class="form-control" id="ps_ratio" name="ps_ratio" 
+                                       placeholder="例: 4.0" min="0">
+                                <div class="form-text">小数点可</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="braid_structure" class="form-label">編み構造</label>
+                                <input type="text" class="form-control" id="braid_structure" name="braid_structure" 
+                                       placeholder="例: x8">
+                                <div class="form-text">例: x4, x8など</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="twist_type" class="form-label">撚りタイプ</label>
+                                <select class="form-select" id="twist_type" name="twist_type">
+                                    <option value="">選択してください</option>
+                                    {% for twist in twist_types %}
+                                        <option value="{{ twist }}">{{ twist }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="color" class="form-label">色</label>
+                                <input type="text" class="form-control" id="color" name="color" 
+                                       placeholder="例: マルチ">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="length_m" class="form-label">標準長さ(m)</label>
+                                <input type="number" class="form-control" id="length_m" name="length_m" 
+                                       placeholder="例: 100" min="1">
+                                <div class="form-text">メートル単位</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3 d-flex align-items-center">
+                                <div class="form-check mt-4">
+                                    <input class="form-check-input" type="checkbox" id="has_core" name="has_core">
+                                    <label class="form-check-label" for="has_core">
+                                        芯糸あり
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ボタン -->
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> 戻る
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> 追加
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// フォームの動的な表示制御
+document.getElementById('item_type').addEventListener('change', function() {
+    const itemType = this.value;
+    
+    // アイテムタイプに応じて関連フィールドの表示/非表示を制御
+    // 例: PS Yarnの場合はPS値フィールドを強調など
+    // 実装は省略（必要に応じて拡張）
+});
+</script>
+{% endblock %} 

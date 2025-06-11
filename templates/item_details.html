@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.item_name }} - アイテム詳細{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    <i class="fas fa-eye"></i> アイテム詳細
+                </h4>
+                <div>
+                    <a href="{{ url_for('bom_tree', item_id=item.item_id) }}" class="btn btn-success btn-sm">
+                        <i class="fas fa-sitemap"></i> BOM構造
+                    </a>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> 戻る
+                    </a>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <h3>{{ item.item_name }}</h3>
+                <p><strong>アイテムID:</strong> <code>{{ item.item_id }}</code></p>
+                <p><strong>タイプ:</strong> <span class="badge bg-info">{{ item.item_type }}</span></p>
+                <p><strong>数量単位:</strong> {{ item.unit_of_measure }}</p>
+                
+                {% if item.material_type %}
+                <p><strong>材質:</strong> {{ item.material_type }}</p>
+                {% endif %}
+                
+                {% if item.denier %}
+                <p><strong>デニール:</strong> {{ item.denier }}d</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">構成部品 ({{ components|length }}件)</h5>
+            </div>
+            <div class="card-body">
+                {% if components %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>構成部品名</th>
+                                    <th>数量</th>
+                                    <th>用途</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for component in components %}
+                                <tr>
+                                    <td>{{ component.item_name }}</td>
+                                    <td>{{ component.quantity }} {{ component.unit_of_measure }}</td>
+                                    <td>{{ component.usage_type }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p>構成部品がありません。</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

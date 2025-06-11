@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}アイテム一覧 - 釣り糸製造BOM管理システム{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    <i class="fas fa-list"></i> アイテム一覧
+                    <span class="badge bg-secondary">{{ items|length }}件</span>
+                </h4>
+                <div>
+                    <a href="{{ url_for('add_item') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> 新規追加
+                    </a>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <!-- フィルタリング -->
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label for="item-type-filter" class="form-label">アイテムタイプでフィルタ:</label>
+                        <select id="item-type-filter" class="form-select" onchange="filterByType()">
+                            <option value="all" {% if not current_filter or current_filter == 'all' %}selected{% endif %}>
+                                すべて
+                            </option>
+                            {% for item_type in item_types %}
+                                <option value="{{ item_type }}" {% if current_filter == item_type %}selected{% endif %}>
+                                    {{ item_type }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- アイテム一覧テーブル -->
+                {% if items %}
+                    <div class="table-responsive">
+                        <table id="items-table" class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th class="sortable" data-column="0" data-type="text">
+                                        アイテムID <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="1" data-type="text">
+                                        アイテム名 <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="2" data-type="text">
+                                        タイプ <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="3" data-type="text">
+                                        単位 <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="4" data-type="text">
+                                        材質 <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="5" data-type="number">
+                                        デニール <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="6" data-type="number">
+                                        PS値 <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="7" data-type="text">
+                                        撚り <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items %}
+                                    <tr>
+                                        <td>
+                                            <code>{{ item.item_id }}</code>
+                                        </td>
+                                        <td>
+                                            <strong>{{ item.item_name }}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info item-type-badge">
+                                                {{ item.item_type }}
+                                            </span>
+                                        </td>
+                                        <td>{{ item.unit_of_measure }}</td>
+                                        <td>
+                                            {% if item.material_type %}
+                                                <span class="badge bg-secondary">{{ item.material_type }}</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if item.denier %}
+                                                {{ item.denier }}d
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if item.ps_ratio %}
+                                                {{ item.ps_ratio }}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if item.twist_type %}
+                                                <span class="badge bg-warning text-dark">{{ item.twist_type }}</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <a href="{{ url_for('item_details', item_id=item.item_id) }}" 
+                                                   class="btn btn-sm btn-outline-primary" title="詳細">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                <a href="{{ url_for('bom_tree', item_id=item.item_id) }}" 
+                                                   class="btn btn-sm btn-outline-success" title="BOM構造">
+                                                    <i class="fas fa-sitemap"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">アイテムが見つかりませんでした</h5>
+                        <p class="text-muted">
+                            {% if current_filter and current_filter != 'all' %}
+                                「{{ current_filter }}」でフィルタした結果、該当するアイテムがありません。
+                            {% else %}
+                                アイテムが登録されていません。
+                            {% endif %}
+                        </p>
+                        <a href="{{ url_for('add_item') }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> 最初のアイテムを追加
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* ソート可能なテーブルヘッダーのスタイル */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.sortable:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.sort-icon {
+    margin-left: 5px;
+    opacity: 0.5;
+    font-size: 0.8em;
+}
+
+.sortable.asc .sort-icon::before {
+    content: "\f0de"; /* fa-sort-up */
+    opacity: 1;
+}
+
+.sortable.desc .sort-icon::before {
+    content: "\f0dd"; /* fa-sort-down */
+    opacity: 1;
+}
+
+.sortable.asc .sort-icon,
+.sortable.desc .sort-icon {
+    opacity: 1;
+}
+</style>
+
+<script>
+function filterByType() {
+    const select = document.getElementById('item-type-filter');
+    const selectedType = select.value;
+    
+    if (selectedType === 'all') {
+        window.location.href = '{{ url_for("index") }}';
+    } else {
+        window.location.href = '{{ url_for("index") }}?item_type=' + encodeURIComponent(selectedType);
+    }
+}
+
+// テーブルソート機能
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('items-table');
+    if (!table) return;
+    
+    const headers = table.querySelectorAll('.sortable');
+    
+    headers.forEach(header => {
+        header.addEventListener('click', function() {
+            const column = parseInt(this.getAttribute('data-column'));
+            const dataType = this.getAttribute('data-type');
+            const currentSort = this.classList.contains('asc') ? 'asc' : this.classList.contains('desc') ? 'desc' : null;
+            
+            // すべてのヘッダーからソートクラスを削除
+            headers.forEach(h => h.classList.remove('asc', 'desc'));
+            
+            // 新しいソート方向を決定
+            let newSort = 'asc';
+            if (currentSort === 'asc') {
+                newSort = 'desc';
+            }
+            
+            // ソートクラスを追加
+            this.classList.add(newSort);
+            
+            // テーブルをソート
+            sortTable(table, column, newSort, dataType);
+        });
+    });
+});
+
+function sortTable(table, column, direction, dataType) {
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    rows.sort((a, b) => {
+        let aVal = a.cells[column].textContent.trim();
+        let bVal = b.cells[column].textContent.trim();
+        
+        // データタイプに応じた比較処理
+        if (dataType === 'number') {
+            // 数値の場合：数値部分のみを抽出（例：「150d」→「150」）
+            aVal = parseFloat(aVal.replace(/[^\d.-]/g, '')) || 0;
+            bVal = parseFloat(bVal.replace(/[^\d.-]/g, '')) || 0;
+        } else {
+            // 文字列の場合：大文字小文字を区別しない比較
+            aVal = aVal.toLowerCase();
+            bVal = bVal.toLowerCase();
+            
+            // 「-」は最後にソート
+            if (aVal === '-') aVal = 'zzzzz';
+            if (bVal === '-') bVal = 'zzzzz';
+        }
+        
+        let result = 0;
+        if (dataType === 'number') {
+            result = aVal - bVal;
+        } else {
+            result = aVal.localeCompare(bVal, 'ja');
+        }
+        
+        return direction === 'asc' ? result : -result;
+    });
+    
+    // ソートされた行を再配置
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // テーブルの縞模様を更新
+    updateTableStripes(tbody);
+}
+
+function updateTableStripes(tbody) {
+    const rows = tbody.querySelectorAll('tr');
+    rows.forEach((row, index) => {
+        if (index % 2 === 0) {
+            row.classList.remove('table-dark');
+        } else {
+            row.classList.remove('table-dark');
+        }
+    });
+}
+</script>
+{% endblock %} 

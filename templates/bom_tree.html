@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}BOM構造 - {{ item.item_name }} - 釣り糸製造BOM管理システム{% endblock %}
+
+<!-- BOMツリー描画のマクロ -->
+{% macro render_bom_tree(node, depth) %}
+    {% if node and node.item %}
+        <div class="bom-tree-item">
+            {% for i in range(depth) %}
+                <span style="margin-left: 20px;"></span>
+            {% endfor %}
+            
+            {% if depth == 0 %}
+                <span class="bom-tree-parent">
+                    📦 {{ node.item.item_name }} ({{ node.item.item_id }})
+                </span>
+                <span class="badge bg-primary ms-2">{{ node.item.item_type }}</span>
+            {% else %}
+                <span class="text-muted">├─</span>
+                <span class="bom-tree-component">
+                    {% if node.item.item_type == '原糸' %}🧵
+                    {% elif node.item.item_type == 'PS糸' %}🔧
+                    {% elif node.item.item_type == '製紐糸' %}🪢
+                    {% elif node.item.item_type == '染色糸' %}🎨
+                    {% elif node.item.item_type == '巻き取り糸' %}🎯
+                    {% elif node.item.item_type == '完成品' %}✨
+                    {% elif node.item.item_type == '芯糸' %}🎯
+                    {% elif node.item.item_type == '梱包資材' %}📦
+                    {% elif node.item.item_type == '成形品' %}🔩
+                    {% else %}⚙️
+                    {% endif %}
+                    {{ node.item.item_name }}
+                </span>
+                <span class="badge bg-info item-type-badge ms-1">{{ node.item.item_type }}</span>
+            {% endif %}
+        </div>
+        
+        <!-- 構成部品の表示 -->
+        {% for component in node.components %}
+            <div class="bom-tree-item">
+                {% for i in range(depth + 1) %}
+                    <span style="margin-left: 20px;"></span>
+                {% endfor %}
+                <span class="text-muted">└─</span>
+                <span class="bom-tree-quantity">{{ component.quantity }} {{ component.item.unit_of_measure }}</span>
+                <span class="text-muted">({{ component.usage_type }})</span>
+            </div>
+            {{ render_bom_tree(component, depth + 2) }}
+        {% endfor %}
+    {% endif %}
+{% endmacro %}
+
+<!-- 材料集計表のマクロ -->
+{% macro render_material_summary(node, level) %}
+    {% for component in node.components %}
+        <tr>
+            <td>
+                <span class="badge bg-secondary">Lv.{{ level + 1 }}</span>
+            </td>
+            <td>{{ component.item.item_name }}</td>
+            <td>
+                <span class="badge bg-info item-type-badge">{{ component.item.item_type }}</span>
+            </td>
+            <td>
+                <strong>{{ component.quantity }}</strong> {{ component.item.unit_of_measure }}
+            </td>
+            <td>
+                <span class="badge bg-outline-secondary">{{ component.usage_type }}</span>
+            </td>
+        </tr>
+        {{ render_material_summary(component, level + 1) }}
+    {% endfor %}
+{% endmacro %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- アイテム情報ヘッダー -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    <i class="fas fa-sitemap"></i> BOM構造
+                </h4>
+                <div>
+                    <a href="{{ url_for('add_bom') }}?parent_item_id={{ item.item_id }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus"></i> BOM構成追加
+                    </a>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> 戻る
+                    </a>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h5>{{ item.item_name }}</h5>
+                        <p class="mb-2">
+                            <strong>アイテムID:</strong> <code>{{ item.item_id }}</code>
+                            <span class="badge bg-info ms-2">{{ item.item_type }}</span>
+                        </p>
+                        <div class="row">
+                            <div class="col-md-6">
+                                {% if item.material_type %}
+                                    <p class="mb-1"><strong>材質:</strong> {{ item.material_type }}</p>
+                                {% endif %}
+                                {% if item.denier %}
+                                    <p class="mb-1"><strong>デニール:</strong> {{ item.denier }}d</p>
+                                {% endif %}
+                                {% if item.ps_ratio %}
+                                    <p class="mb-1"><strong>PS値:</strong> {{ item.ps_ratio }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                {% if item.braid_structure %}
+                                    <p class="mb-1"><strong>編み構造:</strong> {{ item.braid_structure }}</p>
+                                {% endif %}
+                                {% if item.color %}
+                                    <p class="mb-1"><strong>色:</strong> {{ item.color }}</p>
+                                {% endif %}
+                                {% if item.length_m %}
+                                    <p class="mb-1"><strong>長さ:</strong> {{ item.length_m }}m</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <p><strong>数量単位:</strong> {{ item.unit_of_measure }}</p>
+                        {% if item.has_core %}
+                            <span class="badge bg-warning text-dark">芯糸あり</span>
+                        {% endif %}
+                        {% if item.twist_type %}
+                            <span class="badge bg-secondary">{{ item.twist_type }}撚り</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- BOM構造ツリー -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tree"></i> 構成部品ツリー
+                </h5>
+            </div>
+            
+            <div class="card-body">
+                {% if bom_structure and bom_structure.components %}
+                    <div class="bom-tree">
+                        {{ render_bom_tree(bom_structure, 0) }}
+                    </div>
+                    
+                    <!-- 材料集計表 -->
+                    <div class="mt-4">
+                        <h6>材料集計</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>レベル</th>
+                                        <th>アイテム名</th>
+                                        <th>タイプ</th>
+                                        <th>数量</th>
+                                        <th>用途</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {{ render_material_summary(bom_structure, 0) }}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-seedling fa-3x text-muted mb-3"></i>
+                        <h6 class="text-muted">構成部品が登録されていません</h6>
+                        <p class="text-muted">
+                            このアイテムの構成部品を追加してBOM構造を構築してください。
+                        </p>
+                        <a href="{{ url_for('add_bom') }}?parent_item_id={{ item.item_id }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> 最初の構成部品を追加
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// BOMツリーの展開/折りたたみ機能
+document.addEventListener('DOMContentLoaded', function() {
+    // 将来的にツリーノードのクリックで展開/折りたたみ機能を追加可能
+    console.log('BOM Tree loaded');
+});
+</script>
+{% endblock %} 
