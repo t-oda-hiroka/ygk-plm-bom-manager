@@ -165,11 +165,31 @@
                                         <td>
                                             <strong>{{ item.item_name }}</strong>
                                         </td>
-                                        <td>
-                                            <span class="badge bg-info item-type-badge">
-                                                {{ item.item_type }}
-                                            </span>
-                                        </td>
+                                                                <td>
+                            {% if item.item_type == '原糸' %}
+                                <span class="badge bg-success item-type-badge">{{ item.item_type }}</span>
+                            {% elif item.item_type == 'PS糸' %}
+                                <span class="badge bg-warning text-dark item-type-badge">{{ item.item_type }}</span>
+                            {% elif item.item_type == '製紐糸' %}
+                                <span class="badge bg-primary item-type-badge">{{ item.item_type }}</span>
+                            {% elif item.item_type == '染色糸' %}
+                                <span class="badge bg-info item-type-badge">{{ item.item_type }}</span>
+                            {% elif item.item_type == '後PS糸' %}
+                                <span class="badge bg-dark item-type-badge">{{ item.item_type }}</span>
+                            {% elif item.item_type == '巻き取り糸' %}
+                                <span class="badge bg-secondary item-type-badge">{{ item.item_type }}</span>
+                            {% elif item.item_type == '完成品' %}
+                                <span class="badge bg-danger item-type-badge">{{ item.item_type }}</span>
+                            {% elif item.item_type == '芯糸' %}
+                                <span class="badge bg-light text-dark item-type-badge">{{ item.item_type }}</span>
+                            {% elif item.item_type == '梱包資材' %}
+                                <span class="badge bg-warning text-dark item-type-badge">{{ item.item_type }}</span>
+                            {% elif item.item_type == '成形品' %}
+                                <span class="badge bg-secondary item-type-badge">{{ item.item_type }}</span>
+                            {% else %}
+                                <span class="badge bg-info item-type-badge">{{ item.item_type }}</span>
+                            {% endif %}
+                        </td>
                                         <td>
                                             {% if item.series_name %}
                                                 <span class="badge bg-success">{{ item.series_name }}</span>

@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block title %}ロット系統図 - {{ lot.lot_id }} - BOM管理システム{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- ヘッダー -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-sitemap text-primary"></i>
+                        ロット系統図: {{ lot.lot_id }}
+                    </h1>
+                    <p class="text-muted mb-0">{{ lot.item_name }} - {{ lot.process_name }}</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('lots_list') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-list"></i> ロット一覧
+                    </a>
+                    <a href="{{ url_for('lot_details', lot_id=lot.lot_id) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-info-circle"></i> 詳細情報
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 基本情報サマリー -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <h6 class="text-muted">ロットID</h6>
+                            <p class="h5 text-primary mb-0">{{ lot.lot_id }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">アイテム</h6>
+                            <p class="mb-0">{{ lot.item_name }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">工程</h6>
+                            <p class="mb-0">{{ lot.process_name }} (L{{ lot.process_level }})</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">現在数量</h6>
+                            <p class="mb-0">{{ "%.2f"|format(lot.current_quantity) }} {{ lot.unit_of_measure }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 系統図 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-project-diagram"></i> 系統図
+                        <small class="text-muted">- 材料消費と製品生産の流れ</small>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if genealogy_tree %}
+                        <!-- Tree Container -->
+                        <div id="genealogy-tree" class="genealogy-container">
+                            {{ render_genealogy_node(genealogy_tree, 0) }}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-sitemap fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">系統図データがありません</h5>
+                            <p class="text-muted">このロットの投入・消費記録がまだありません。</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 材料リスト -->
+    {% if consumed_materials %}
+    <div class="row mt-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-arrow-down text-warning"></i> 
+                        投入された材料 ({{ consumed_materials|length }}件)
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 25%;">子ロット</th>
+                                    <th style="width: 30%;">アイテム</th>
+                                    <th style="width: 15%;">消費数量</th>
+                                    <th style="width: 15%;">用途</th>
+                                    <th style="width: 15%;">投入日</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for material in consumed_materials %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('lot_details', lot_id=material.child_lot) }}" 
+                                           class="text-decoration-none fw-bold">
+                                            {{ material.child_lot }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <div class="text-truncate" title="{{ material.child_item_name }}">
+                                            {{ material.child_item_name }}
+                                        </div>
+                                        <small class="text-muted">{{ material.child_process_name }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold">{{ "%.2f"|format(material.consumed_quantity) }}</span>
+                                        <small class="text-muted d-block">{{ material.unit_of_measure }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">{{ material.usage_type }}</span>
+                                    </td>
+                                    <td>
+                                        <small>{{ material.consumption_date[:10] if material.consumption_date else '-' }}</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 投入先 -->
+        {% if used_in_lots %}
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-arrow-up text-success"></i> 
+                        投入先 ({{ used_in_lots|length }}件)
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 25%;">親ロット</th>
+                                    <th style="width: 30%;">アイテム</th>
+                                    <th style="width: 15%;">消費数量</th>
+                                    <th style="width: 15%;">用途</th>
+                                    <th style="width: 15%;">投入日</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for usage in used_in_lots %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('lot_details', lot_id=usage.parent_lot) }}" 
+                                           class="text-decoration-none fw-bold">
+                                            {{ usage.parent_lot }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <div class="text-truncate" title="{{ usage.parent_item_name }}">
+                                            {{ usage.parent_item_name }}
+                                        </div>
+                                        <small class="text-muted">{{ usage.parent_process_name }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold">{{ "%.2f"|format(usage.consumed_quantity) }}</span>
+                                        <small class="text-muted d-block">{{ usage.unit_of_measure }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">{{ usage.usage_type }}</span>
+                                    </td>
+                                    <td>
+                                        <small>{{ usage.consumption_date[:10] if usage.consumption_date else '-' }}</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 統計情報 -->
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-layer-group fa-2x text-primary mb-2"></i>
+                    <h6 class="card-title">工程レベル</h6>
+                    <h4 class="text-primary">L{{ lot.process_level }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-arrow-down fa-2x text-warning mb-2"></i>
+                    <h6 class="card-title">投入材料数</h6>
+                    <h4 class="text-warning">{{ consumed_materials|length if consumed_materials else 0 }}件</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-arrow-up fa-2x text-success mb-2"></i>
+                    <h6 class="card-title">投入先数</h6>
+                    <h4 class="text-success">{{ used_in_lots|length if used_in_lots else 0 }}件</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-balance-scale fa-2x text-info mb-2"></i>
+                    <h6 class="card-title">現在数量</h6>
+                    <h4 class="text-info">{{ "%.1f"|format(lot.current_quantity) }}</h4>
+                    <small class="text-muted">{{ lot.unit_of_measure }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.genealogy-container {
+    overflow-x: auto;
+    padding: 20px;
+    min-height: 300px;
+}
+
+.genealogy-node {
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    min-width: 200px;
+    text-align: center;
+}
+
+.genealogy-node.current {
+    border-color: #0d6efd;
+    background: #e7f3ff;
+}
+
+.genealogy-node.material {
+    border-color: #ffc107;
+    background: #fff8e1;
+}
+
+.genealogy-node.product {
+    border-color: #198754;
+    background: #e8f5e8;
+}
+
+.genealogy-children {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.genealogy-level {
+    margin-bottom: 30px;
+}
+
+.genealogy-level h6 {
+    text-align: center;
+    color: #6c757d;
+    margin-bottom: 20px;
+}
+</style>
+
+{% macro render_genealogy_node(node, level) %}
+    <div class="genealogy-level">
+        <div class="genealogy-node {% if node.is_current %}current{% elif level < 0 %}material{% else %}product{% endif %}">
+            <h6 class="mb-1">
+                <a href="{{ url_for('lot_details', lot_id=node.lot_id) }}" class="text-decoration-none">
+                    {{ node.lot_id }}
+                </a>
+            </h6>
+            <p class="mb-1 small">{{ node.item_name }}</p>
+            <p class="mb-1 small text-muted">{{ node.process_name }}</p>
+            <p class="mb-0 small">
+                <strong>{{ "%.2f"|format(node.current_quantity) }}</strong>
+                {{ node.unit_of_measure }}
+            </p>
+            {% if node.consumed_quantity %}
+            <p class="mb-0 small text-danger">
+                消費: {{ "%.2f"|format(node.consumed_quantity) }}
+            </p>
+            {% endif %}
+        </div>
+        
+        {% if node.children %}
+        <div class="genealogy-children">
+            {% for child in node.children %}
+                {{ render_genealogy_node(child, level + 1) }}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+{% endmacro %}
+{% endblock %} 

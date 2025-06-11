@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block title %}ロット詳細 - {{ lot.lot_id }} - BOM管理システム{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- ヘッダー -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-layer-group text-primary"></i>
+                        ロット詳細: {{ lot.lot_id }}
+                    </h1>
+                    <p class="text-muted mb-0">{{ lot.item_name }} - {{ lot.process_name }}</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('lots_list') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> ロット一覧に戻る
+                    </a>
+                    <a href="{{ url_for('lot_genealogy', lot_id=lot.lot_id) }}" class="btn btn-outline-info">
+                        <i class="fas fa-sitemap"></i> 系統図
+                    </a>
+                    {% if lot.lot_status == 'active' and lot.current_quantity > 0 %}
+                    <a href="{{ url_for('consume_lot', lot_id=lot.lot_id) }}" class="btn btn-outline-warning">
+                        <i class="fas fa-arrow-right"></i> 投入
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 基本情報 -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle"></i> 基本情報
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th class="w-50">ロットID:</th>
+                                    <td><strong class="text-primary">{{ lot.lot_id }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>アイテム名:</th>
+                                    <td>{{ lot.item_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>アイテム種別:</th>
+                                    <td><span class="badge bg-secondary">{{ lot.item_type }}</span></td>
+                                </tr>
+                                <tr>
+                                    <th>工程:</th>
+                                    <td><span class="badge bg-info">{{ lot.process_name }} (L{{ lot.process_level }})</span></td>
+                                </tr>
+                                <tr>
+                                    <th>製造日:</th>
+                                    <td>{{ lot.production_date }}</td>
+                                </tr>
+                                <tr>
+                                    <th>品質グレード:</th>
+                                    <td>
+                                        {% if lot.quality_grade == 'A' %}
+                                            <span class="badge bg-success">{{ lot.grade_name }}</span>
+                                        {% elif lot.quality_grade == 'A0' %}
+                                            <span class="badge bg-warning">{{ lot.grade_name }}</span>
+                                        {% elif lot.quality_grade == 'B' %}
+                                            <span class="badge bg-secondary">{{ lot.grade_name }}</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">{{ lot.grade_name }}</span>
+                                        {% endif %}
+                                        <small class="text-muted">{{ lot.processing_rule }}</small>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th class="w-50">ステータス:</th>
+                                    <td>
+                                        {% if lot.lot_status == 'active' %}
+                                            <span class="badge bg-success">アクティブ</span>
+                                        {% elif lot.lot_status == 'consumed' %}
+                                            <span class="badge bg-secondary">消費済み</span>
+                                        {% elif lot.lot_status == 'scrapped' %}
+                                            <span class="badge bg-danger">廃棄</span>
+                                        {% elif lot.lot_status == 'reworked' %}
+                                            <span class="badge bg-warning">リワーク</span>
+                                        {% else %}
+                                            <span class="badge bg-light text-dark">{{ lot.lot_status }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>計画数量:</th>
+                                    <td>{{ "%.2f"|format(lot.planned_quantity) }} {{ lot.unit_of_measure }}</td>
+                                </tr>
+                                <tr>
+                                    <th>実績数量:</th>
+                                    <td>{{ "%.2f"|format(lot.actual_quantity or 0) }} {{ lot.unit_of_measure }}</td>
+                                </tr>
+                                <tr>
+                                    <th>現在数量:</th>
+                                    <td><strong>{{ "%.2f"|format(lot.current_quantity) }} {{ lot.unit_of_measure }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <th>確定度:</th>
+                                    <td><span class="badge bg-light text-dark">{{ lot.accuracy_type }}</span></td>
+                                </tr>
+                                {% if lot.location %}
+                                <tr>
+                                    <th>保管場所:</th>
+                                    <td>{{ lot.location }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 実測情報 -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-ruler"></i> 実測情報
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if lot.measured_length or lot.measured_weight %}
+                    <table class="table table-borderless table-sm">
+                        {% if lot.measured_length %}
+                        <tr>
+                            <th>実測長:</th>
+                            <td><strong>{{ lot.measured_length }} m</strong></td>
+                        </tr>
+                        {% endif %}
+                        {% if lot.measured_weight %}
+                        <tr>
+                            <th>実測重量:</th>
+                            <td><strong>{{ lot.measured_weight }} kg</strong></td>
+                        </tr>
+                        {% endif %}
+                        {% if lot.measurement_notes %}
+                        <tr>
+                            <th>測定メモ:</th>
+                            <td>{{ lot.measurement_notes }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                    {% else %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-ruler fa-2x mb-2"></i>
+                        <p>実測データなし</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 製造情報 -->
+            {% if lot.equipment_id or lot.operator_id %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-cogs"></i> 製造情報
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless table-sm">
+                        {% if lot.equipment_id %}
+                        <tr>
+                            <th>使用設備:</th>
+                            <td>{{ lot.equipment_id }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if lot.operator_id %}
+                        <tr>
+                            <th>作業者:</th>
+                            <td>{{ lot.operator_id }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 在庫移動履歴 -->
+    {% if transactions %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-exchange-alt"></i> 在庫移動履歴 ({{ transactions|length }}件)
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>日時</th>
+                            <th>取引種別</th>
+                            <th>数量変更</th>
+                            <th>移動先</th>
+                            <th>関連ロット</th>
+                            <th>備考</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tx in transactions %}
+                        <tr>
+                            <td>{{ tx.transaction_date[:19] if tx.transaction_date else '-' }}</td>
+                            <td>
+                                {% if tx.transaction_type == 'RECEIPT' %}
+                                    <span class="badge bg-success">入庫</span>
+                                {% elif tx.transaction_type == 'CONSUMPTION' %}
+                                    <span class="badge bg-warning">消費</span>
+                                {% elif tx.transaction_type == 'TRANSFER' %}
+                                    <span class="badge bg-info">移動</span>
+                                {% elif tx.transaction_type == 'SCRAP' %}
+                                    <span class="badge bg-danger">廃棄</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ tx.transaction_type }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="{% if tx.quantity_change > 0 %}text-success{% else %}text-danger{% endif %}">
+                                    {{ "%+.2f"|format(tx.quantity_change) }}
+                                </span>
+                                <small class="text-muted">
+                                    ({{ "%.2f"|format(tx.quantity_before) }} → {{ "%.2f"|format(tx.quantity_after) }})
+                                </small>
+                            </td>
+                            <td>{{ tx.location_to or '-' }}</td>
+                            <td>
+                                {% if tx.related_lot_id %}
+                                    <a href="{{ url_for('lot_details', lot_id=tx.related_lot_id) }}" class="text-decoration-none">
+                                        {{ tx.related_lot_id }}
+                                    </a>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ tx.notes or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ロット系統図情報 -->
+    <div class="row">
+        <!-- 投入された材料 -->
+        {% if consumed_materials %}
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-arrow-down"></i> 投入された材料 ({{ consumed_materials|length }}件)
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>子ロット</th>
+                                    <th>アイテム</th>
+                                    <th>消費数量</th>
+                                    <th>用途</th>
+                                    <th>投入日</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for material in consumed_materials %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('lot_details', lot_id=material.child_lot) }}" class="text-decoration-none">
+                                            {{ material.child_lot }}
+                                        </a>
+                                    </td>
+                                    <td>{{ material.child_item_name }}</td>
+                                    <td>{{ "%.2f"|format(material.consumed_quantity) }}</td>
+                                    <td><span class="badge bg-light text-dark">{{ material.usage_type }}</span></td>
+                                    <td>{{ material.consumption_date[:10] if material.consumption_date else '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 投入先 -->
+        {% if used_in_lots %}
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-arrow-up"></i> 投入先 ({{ used_in_lots|length }}件)
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>親ロット</th>
+                                    <th>アイテム</th>
+                                    <th>消費数量</th>
+                                    <th>用途</th>
+                                    <th>投入日</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for usage in used_in_lots %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('lot_details', lot_id=usage.parent_lot) }}" class="text-decoration-none">
+                                            {{ usage.parent_lot }}
+                                        </a>
+                                    </td>
+                                    <td>{{ usage.parent_item_name }}</td>
+                                    <td>{{ "%.2f"|format(usage.consumed_quantity) }}</td>
+                                    <td><span class="badge bg-light text-dark">{{ usage.usage_type }}</span></td>
+                                    <td>{{ usage.consumption_date[:10] if usage.consumption_date else '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 情報が何もない場合 -->
+        {% if not consumed_materials and not used_in_lots %}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-sitemap"></i> ロット系統図
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    <i class="fas fa-sitemap fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">系統図データなし</h5>
+                    <p class="text-muted">
+                        このロットの投入・消費記録がまだありません。<br>
+                        <a href="{{ url_for('lot_genealogy', lot_id=lot.lot_id) }}" class="btn btn-outline-info">
+                            <i class="fas fa-sitemap"></i> 系統図を確認
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

@@ -23,7 +23,31 @@
             <div class="card-body">
                 <h3>{{ item.item_name }}</h3>
                 <p><strong>アイテムID:</strong> <code>{{ item.item_id }}</code></p>
-                <p><strong>タイプ:</strong> <span class="badge bg-info">{{ item.item_type }}</span></p>
+                <p><strong>タイプ:</strong> 
+                    {% if item.item_type == '原糸' %}
+                        <span class="badge bg-success">{{ item.item_type }}</span>
+                    {% elif item.item_type == 'PS糸' %}
+                        <span class="badge bg-warning text-dark">{{ item.item_type }}</span>
+                    {% elif item.item_type == '製紐糸' %}
+                        <span class="badge bg-primary">{{ item.item_type }}</span>
+                    {% elif item.item_type == '染色糸' %}
+                        <span class="badge bg-info">{{ item.item_type }}</span>
+                    {% elif item.item_type == '後PS糸' %}
+                        <span class="badge bg-dark">{{ item.item_type }}</span>
+                    {% elif item.item_type == '巻き取り糸' %}
+                        <span class="badge bg-secondary">{{ item.item_type }}</span>
+                    {% elif item.item_type == '完成品' %}
+                        <span class="badge bg-danger">{{ item.item_type }}</span>
+                    {% elif item.item_type == '芯糸' %}
+                        <span class="badge bg-light text-dark">{{ item.item_type }}</span>
+                    {% elif item.item_type == '梱包資材' %}
+                        <span class="badge bg-warning text-dark">{{ item.item_type }}</span>
+                    {% elif item.item_type == '成形品' %}
+                        <span class="badge bg-secondary">{{ item.item_type }}</span>
+                    {% else %}
+                        <span class="badge bg-info">{{ item.item_type }}</span>
+                    {% endif %}
+                </p>
                 <p><strong>数量単位:</strong> {{ item.unit_of_measure }}</p>
                 
                 {% if item.material_type %}

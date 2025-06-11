@@ -222,14 +222,35 @@ class BOMManager:
     
     def get_all_items(self) -> List[Dict[str, Any]]:
         """
-        すべてのアイテム一覧を取得します
+        すべてのアイテム一覧を取得します（製造工程逆順でソート）
         
         Returns:
             List[Dict]: アイテム情報のリスト
         """
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute("SELECT * FROM items ORDER BY item_type, item_name")
+            
+            # 製造工程の逆順（完成品→原糸）でソート
+            process_order_sql = """
+                CASE item_type
+                    WHEN '完成品' THEN 1
+                    WHEN '巻き取り糸' THEN 2
+                    WHEN '後PS糸' THEN 3
+                    WHEN '染色糸' THEN 4
+                    WHEN '製紐糸' THEN 5
+                    WHEN 'PS糸' THEN 6
+                    WHEN '原糸' THEN 7
+                    WHEN '成形品' THEN 8
+                    WHEN '梱包資材' THEN 9
+                    WHEN '芯糸' THEN 10
+                    ELSE 11
+                END
+            """
+            
+            cursor = conn.execute(f"""
+                SELECT * FROM items 
+                ORDER BY {process_order_sql}, item_name
+            """)
             
             items = []
             for row in cursor.fetchall():
@@ -242,7 +263,7 @@ class BOMManager:
     
     def get_all_items_by_type(self, item_type: str) -> List[Dict[str, Any]]:
         """
-        指定されたタイプのアイテム一覧を取得します
+        指定されたタイプのアイテム一覧を取得します（製造工程順ソート統一）
         
         Args:
             item_type: アイテムタイプ
@@ -398,12 +419,21 @@ class BOMManager:
                     kwargs.get('barcode_data')
                 ))
                 
-                # 初期入庫トランザクション作成
-                self._create_inventory_transaction(
+                # 初期入庫トランザクション作成（同一接続内で実行）
+                conn.execute("""
+                    INSERT INTO inventory_transactions (
+                        lot_id, transaction_type, quantity_before, quantity_change, quantity_after,
+                        location_from, location_to, related_lot_id, related_process,
+                        reference_document, transaction_date, operator_id, equipment_id, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
                     lot_id, 'RECEIPT', 0, planned_quantity, planned_quantity,
-                    location_to=kwargs.get('location'),
-                    notes=f"ロット初期作成: {lot_id}"
-                )
+                    None, kwargs.get('location'),
+                    None, None, None,
+                    datetime.now().isoformat(),
+                    kwargs.get('operator_id'), kwargs.get('equipment_id'),
+                    f"ロット初期作成: {lot_id}"
+                ))
                 
                 return lot_id
                 
@@ -488,42 +518,32 @@ class BOMManager:
                 current_qty = child_lot[0]
                 new_qty = current_qty - consumed_quantity
                 
-                self._create_inventory_transaction(
+                # 同一接続内でインベントリトランザクション記録
+                conn.execute("""
+                    INSERT INTO inventory_transactions (
+                        lot_id, transaction_type, quantity_before, quantity_change, quantity_after,
+                        location_from, location_to, related_lot_id, related_process,
+                        reference_document, transaction_date, operator_id, equipment_id, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
                     child_lot_id, 'CONSUMPTION', current_qty, -consumed_quantity, new_qty,
-                    related_lot_id=parent_lot_id,
-                    notes=f"{usage_type}として{parent_lot_id}に投入"
-                )
+                    None, None,
+                    parent_lot_id, None, None,
+                    kwargs.get('consumption_date', datetime.now().isoformat()),
+                    None, None,
+                    f"{usage_type}として{parent_lot_id}に投入"
+                ))
+                
+                # 子ロットの現在数量を更新
+                conn.execute("""
+                    UPDATE lots SET current_quantity = ? WHERE lot_id = ?
+                """, (new_qty, child_lot_id))
                 
                 return True
                 
         except sqlite3.IntegrityError as e:
             print(f"系統図追加エラー: {e}")
             return False
-    
-    def _create_inventory_transaction(self, lot_id: str, transaction_type: str,
-                                    quantity_before: float, quantity_change: float,
-                                    quantity_after: float, **kwargs):
-        """
-        在庫移動トランザクションを作成します（内部メソッド）
-        """
-        from datetime import datetime
-        
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                INSERT INTO inventory_transactions (
-                    lot_id, transaction_type, quantity_before, quantity_change, quantity_after,
-                    location_from, location_to, related_lot_id, related_process,
-                    reference_document, transaction_date, operator_id, equipment_id, notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                lot_id, transaction_type, quantity_before, quantity_change, quantity_after,
-                kwargs.get('location_from'), kwargs.get('location_to'),
-                kwargs.get('related_lot_id'), kwargs.get('related_process'),
-                kwargs.get('reference_document'),
-                kwargs.get('transaction_date', datetime.now().isoformat()),
-                kwargs.get('operator_id'), kwargs.get('equipment_id'),
-                kwargs.get('notes')
-            ))
     
     def get_lot_genealogy_tree(self, lot_id: str, direction: str = 'forward') -> Dict[str, Any]:
         """

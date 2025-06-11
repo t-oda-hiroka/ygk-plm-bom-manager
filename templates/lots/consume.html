@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+
+{% block title %}ロット投入 - {{ lot.lot_id }} - BOM管理システム{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- ヘッダー -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-arrow-right text-warning"></i>
+                        ロット投入: {{ lot.lot_id }}
+                    </h1>
+                    <p class="text-muted mb-0">{{ lot.item_name }} - {{ lot.process_name }}</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('lots_list') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-list"></i> ロット一覧
+                    </a>
+                    <a href="{{ url_for('lot_details', lot_id=lot.lot_id) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-info-circle"></i> 詳細情報
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- エラーメッセージ -->
+    {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        <!-- 左側: ロット情報 -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle"></i> 投入ロット情報
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless table-sm">
+                        <tr>
+                            <th class="w-50">ロットID:</th>
+                            <td><strong class="text-primary">{{ lot.lot_id }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>アイテム:</th>
+                            <td>{{ lot.item_name }}</td>
+                        </tr>
+                        <tr>
+                            <th>工程:</th>
+                            <td>{{ lot.process_name }} (L{{ lot.process_level }})</td>
+                        </tr>
+                        <tr>
+                            <th>現在数量:</th>
+                            <td>
+                                <strong class="text-success">{{ "%.2f"|format(lot.current_quantity) }}</strong>
+                                {{ lot.unit_of_measure }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>品質グレード:</th>
+                            <td>
+                                {% if lot.quality_grade == 'A' %}
+                                    <span class="badge bg-success">{{ lot.grade_name }}</span>
+                                {% elif lot.quality_grade == 'A0' %}
+                                    <span class="badge bg-warning">{{ lot.grade_name }}</span>
+                                {% elif lot.quality_grade == 'B' %}
+                                    <span class="badge bg-secondary">{{ lot.grade_name }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ lot.grade_name }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>保管場所:</th>
+                            <td>{{ lot.location or '-' }}</td>
+                        </tr>
+                    </table>
+
+                    <!-- アラート -->
+                    {% if lot.current_quantity <= 0 %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>在庫不足</strong><br>
+                        このロットは投入できません。
+                    </div>
+                    {% elif lot.lot_status != 'active' %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>ステータス注意</strong><br>
+                        このロットはアクティブではありません。
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 最近の消費履歴 -->
+            {% if recent_transactions %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-history"></i> 最近の投入履歴
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>日付</th>
+                                    <th>数量</th>
+                                    <th>投入先</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tx in recent_transactions[:5] %}
+                                <tr>
+                                    <td>{{ tx.transaction_date[:10] if tx.transaction_date else '-' }}</td>
+                                    <td>{{ "%.2f"|format(tx.quantity_change|abs) }}</td>
+                                    <td>{{ tx.related_lot_id or '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 右側: 投入フォーム -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-arrow-right"></i> 投入指示
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if lot.current_quantity > 0 and lot.lot_status == 'active' %}
+                    <form method="POST" action="{{ url_for('consume_lot', lot_id=lot.lot_id) }}">
+                        <div class="row">
+                            <!-- 投入先ロット -->
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="parent_lot_id" class="form-label">
+                                        <i class="fas fa-target"></i> 投入先ロット
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="parent_lot_id" 
+                                           name="parent_lot_id" 
+                                           placeholder="例: 2501S001"
+                                           pattern="[0-9]{4}[A-Z][0-9]{3}"
+                                           title="例: 2501S001 (年月＋工程コード＋連番)"
+                                           required>
+                                    <div class="form-text">投入先のロットIDを入力してください。</div>
+                                </div>
+                            </div>
+
+                            <!-- 投入数量 -->
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="consumed_quantity" class="form-label">
+                                        <i class="fas fa-balance-scale"></i> 投入数量
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group">
+                                        <input type="number" 
+                                               class="form-control" 
+                                               id="consumed_quantity" 
+                                               name="consumed_quantity" 
+                                               step="0.01" 
+                                               min="0.01" 
+                                               max="{{ lot.current_quantity }}"
+                                               placeholder="0.00"
+                                               required>
+                                        <span class="input-group-text">{{ lot.unit_of_measure }}</span>
+                                    </div>
+                                    <div class="form-text">
+                                        最大投入可能数量: <strong>{{ "%.2f"|format(lot.current_quantity) }}</strong> {{ lot.unit_of_measure }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- 用途 -->
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="usage_type" class="form-label">
+                                        <i class="fas fa-tag"></i> 用途
+                                    </label>
+                                    <select class="form-select" id="usage_type" name="usage_type">
+                                        <option value="PRIMARY">主材料</option>
+                                        <option value="SECONDARY">副材料</option>
+                                        <option value="ADDITIVE">添加剤</option>
+                                        <option value="REWORK">リワーク材</option>
+                                        <option value="TEST">テスト用</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 投入日 -->
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="consumption_date" class="form-label">
+                                        <i class="fas fa-calendar"></i> 投入日
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="date" 
+                                           class="form-control" 
+                                           id="consumption_date" 
+                                           name="consumption_date" 
+                                           value="{{ today }}"
+                                           required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 備考 -->
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">
+                                <i class="fas fa-comment"></i> 備考
+                            </label>
+                            <textarea class="form-control" 
+                                      id="notes" 
+                                      name="notes" 
+                                      rows="3" 
+                                      placeholder="投入に関する備考やメモがあれば入力してください"></textarea>
+                        </div>
+
+                        <!-- 確認チェックボックス -->
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="checkbox" 
+                                       id="confirm_consumption" 
+                                       name="confirm_consumption" 
+                                       required>
+                                <label class="form-check-label" for="confirm_consumption">
+                                    <strong>投入内容を確認しました。この操作は取り消せません。</strong>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- ボタン -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('lot_details', lot_id=lot.lot_id) }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> キャンセル
+                            </a>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-arrow-right"></i> ロットを投入
+                            </button>
+                        </div>
+                    </form>
+
+                    {% else %}
+                    <!-- 投入不可の場合 -->
+                    <div class="text-center py-5">
+                        <i class="fas fa-ban fa-3x text-danger mb-3"></i>
+                        <h5 class="text-danger">投入できません</h5>
+                        <p class="text-muted">
+                            {% if lot.current_quantity <= 0 %}
+                                このロットの在庫数量が不足しています。
+                            {% elif lot.lot_status != 'active' %}
+                                このロットはアクティブ状態ではありません。
+                            {% else %}
+                                このロットは投入できない状態です。
+                            {% endif %}
+                        </p>
+                        <a href="{{ url_for('lot_details', lot_id=lot.lot_id) }}" class="btn btn-outline-primary">
+                            <i class="fas fa-info-circle"></i> 詳細を確認
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 投入予測効果 -->
+            {% if lot.current_quantity > 0 %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-calculator"></i> 投入予測効果
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center" id="consumption-prediction">
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 bg-light">
+                                <h6 class="text-muted">投入前数量</h6>
+                                <h5 class="text-primary mb-0" id="before-quantity">{{ "%.2f"|format(lot.current_quantity) }}</h5>
+                                <small class="text-muted">{{ lot.unit_of_measure }}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 bg-warning bg-opacity-10">
+                                <h6 class="text-muted">投入数量</h6>
+                                <h5 class="text-warning mb-0" id="consume-quantity">0.00</h5>
+                                <small class="text-muted">{{ lot.unit_of_measure }}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 bg-success bg-opacity-10">
+                                <h6 class="text-muted">投入後数量</h6>
+                                <h5 class="text-success mb-0" id="after-quantity">{{ "%.2f"|format(lot.current_quantity) }}</h5>
+                                <small class="text-muted">{{ lot.unit_of_measure }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const quantityInput = document.getElementById('consumed_quantity');
+    const beforeQuantity = {{ lot.current_quantity }};
+    
+    if (quantityInput) {
+        quantityInput.addEventListener('input', function() {
+            const consumeQty = parseFloat(this.value) || 0;
+            const afterQty = beforeQuantity - consumeQty;
+            
+            document.getElementById('consume-quantity').textContent = consumeQty.toFixed(2);
+            document.getElementById('after-quantity').textContent = afterQty.toFixed(2);
+            
+            // 警告表示
+            const afterQuantityElement = document.getElementById('after-quantity');
+            if (afterQty < 0) {
+                afterQuantityElement.className = 'text-danger mb-0';
+            } else if (afterQty === 0) {
+                afterQuantityElement.className = 'text-warning mb-0';
+            } else {
+                afterQuantityElement.className = 'text-success mb-0';
+            }
+        });
+    }
+    
+    // 親ロットIDの自動補完/検証
+    const parentLotInput = document.getElementById('parent_lot_id');
+    if (parentLotInput) {
+        parentLotInput.addEventListener('input', function() {
+            const value = this.value.toUpperCase();
+            this.value = value;
+            
+            // 簡単な検証
+            const pattern = /^[0-9]{4}[A-Z][0-9]{3}$/;
+            if (value && !pattern.test(value)) {
+                this.setCustomValidity('ロットID形式が正しくありません (例: 2501S001)');
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+    }
+});
+</script>
+{% endblock %} 
