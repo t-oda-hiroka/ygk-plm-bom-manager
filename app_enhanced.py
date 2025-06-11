@@ -1,5 +1,5 @@
 """
-釣り糸製造BOM管理システム Web アプリケーション
+製造BOM管理システム Web アプリケーション
 Oracle DB連携版
 
 Flask を使用してBOM管理システムのWebインターフェースを提供します。
@@ -434,7 +434,7 @@ if __name__ == '__main__':
         sys.exit(1)
     
     print("=" * 60)
-    print("釣り糸製造BOM管理システム Oracle連携版")
+    print("製造BOM管理システム Oracle連携版")
     print("=" * 60)
     print("機能:")
     print("• Oracle製品データ統合")

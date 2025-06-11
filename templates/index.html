@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}アイテム一覧 - 釣り糸製造BOM管理システム{% endblock %}
+{% block title %}アイテム一覧 - 製造BOM管理システム{% endblock %}
 
 {% block content %}
 <!-- ステージング環境用統計情報 -->
@@ -139,19 +139,19 @@
                                         タイプ <i class="fas fa-sort sort-icon"></i>
                                     </th>
                                     <th class="sortable" data-column="3" data-type="text">
-                                        単位 <i class="fas fa-sort sort-icon"></i>
+                                        シリーズ <i class="fas fa-sort sort-icon"></i>
                                     </th>
                                     <th class="sortable" data-column="4" data-type="text">
-                                        材質 <i class="fas fa-sort sort-icon"></i>
+                                        糸構成 <i class="fas fa-sort sort-icon"></i>
                                     </th>
-                                    <th class="sortable" data-column="5" data-type="number">
-                                        デニール <i class="fas fa-sort sort-icon"></i>
+                                    <th class="sortable" data-column="5" data-type="text">
+                                        編み方 <i class="fas fa-sort sort-icon"></i>
                                     </th>
                                     <th class="sortable" data-column="6" data-type="number">
-                                        PS値 <i class="fas fa-sort sort-icon"></i>
+                                        長さ <i class="fas fa-sort sort-icon"></i>
                                     </th>
                                     <th class="sortable" data-column="7" data-type="text">
-                                        撚り <i class="fas fa-sort sort-icon"></i>
+                                        色 <i class="fas fa-sort sort-icon"></i>
                                     </th>
                                     <th>操作</th>
                                 </tr>
@@ -170,31 +170,37 @@
                                                 {{ item.item_type }}
                                             </span>
                                         </td>
-                                        <td>{{ item.unit_of_measure }}</td>
                                         <td>
-                                            {% if item.material_type %}
-                                                <span class="badge bg-secondary">{{ item.material_type }}</span>
+                                            {% if item.series_name %}
+                                                <span class="badge bg-success">{{ item.series_name }}</span>
                                             {% else %}
                                                 <span class="text-muted">-</span>
                                             {% endif %}
                                         </td>
                                         <td>
-                                            {% if item.denier %}
-                                                {{ item.denier }}d
+                                            {% if item.yarn_composition %}
+                                                <span class="badge bg-info">{{ item.yarn_composition }}</span>
                                             {% else %}
                                                 <span class="text-muted">-</span>
                                             {% endif %}
                                         </td>
                                         <td>
-                                            {% if item.ps_ratio %}
-                                                {{ item.ps_ratio }}
+                                            {% if item.knit_type %}
+                                                <span class="badge bg-primary">{{ item.knit_type }}</span>
                                             {% else %}
                                                 <span class="text-muted">-</span>
                                             {% endif %}
                                         </td>
                                         <td>
-                                            {% if item.twist_type %}
-                                                <span class="badge bg-warning text-dark">{{ item.twist_type }}</span>
+                                            {% if item.length_m %}
+                                                <strong>{{ item.length_m }}</strong><small class="text-muted">m</small>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if item.color %}
+                                                <span class="badge bg-secondary">{{ item.color }}</span>
                                             {% else %}
                                                 <span class="text-muted">-</span>
                                             {% endif %}
