@@ -14,8 +14,11 @@
                     <a href="{{ url_for('bom_tree', item_id=item.item_id) }}" class="btn btn-success btn-sm">
                         <i class="fas fa-sitemap"></i> BOM構造
                     </a>
-                    <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">
-                        <i class="fas fa-arrow-left"></i> 戻る
+                    <a href="{{ url_for('item_lots', item_id=item.item_id) }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-boxes"></i> ロット管理
+                    </a>
+                    <a href="{{ url_for('items_list') }}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> アイテム一覧に戻る
                     </a>
                 </div>
             </div>
@@ -88,6 +91,132 @@
                     </div>
                 {% else %}
                     <p>構成部品がありません。</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- ロット情報セクション -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-boxes"></i> 関連ロット情報
+                </h5>
+                <div>
+                    <a href="{{ url_for('item_lots', item_id=item.item_id) }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-list"></i> 全て表示
+                    </a>
+                    <a href="{{ url_for('create_lot') }}?item_id={{ item.item_id }}" class="btn btn-success btn-sm">
+                        <i class="fas fa-plus"></i> 新規作成
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if related_lots %}
+                    <!-- 統計情報 -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center">
+                                    <h4>{{ lot_stats.total }}</h4>
+                                    <small>総ロット数</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <h4>{{ lot_stats.active }}</h4>
+                                    <small>アクティブ</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-dark">
+                                <div class="card-body text-center">
+                                    <h4>{{ lot_stats.consumed }}</h4>
+                                    <small>消費済み</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body text-center">
+                                    <h4>{{ lot_stats.completed }}</h4>
+                                    <small>完了</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 最新ロット一覧（最大5件） -->
+                    <h6>最新のロット（最大5件表示）</h6>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-sm">
+                            <thead>
+                                <tr>
+                                    <th>ロットID</th>
+                                    <th>ステータス</th>
+                                    <th>工程</th>
+                                    <th>数量</th>
+                                    <th>場所</th>
+                                    <th>生産日</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for lot in related_lots[:5] %}
+                                <tr>
+                                    <td><strong>{{ lot.lot_id }}</strong></td>
+                                    <td>
+                                        {% if lot.lot_status == 'active' %}
+                                            <span class="badge bg-success">{{ lot.lot_status|title }}</span>
+                                        {% elif lot.lot_status == 'consumed' %}
+                                            <span class="badge bg-warning text-dark">{{ lot.lot_status|title }}</span>
+                                        {% elif lot.lot_status == 'completed' %}
+                                            <span class="badge bg-info">{{ lot.lot_status|title }}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ lot.lot_status|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ lot.process_code }}</span>
+                                    </td>
+                                    <td>{{ "%.1f"|format(lot.current_quantity) }} {{ lot.unit_of_measure }}</td>
+                                    <td>{{ lot.location or '-' }}</td>
+                                    <td>{{ lot.production_date or '-' }}</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('lot_details', lot_id=lot.lot_id) }}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-info-circle"></i>
+                                            </a>
+                                            <a href="{{ url_for('lot_genealogy', lot_id=lot.lot_id) }}" 
+                                               class="btn btn-outline-info btn-sm">
+                                                <i class="fas fa-project-diagram"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {% if related_lots|length > 5 %}
+                    <p class="text-center mt-2">
+                        <a href="{{ url_for('item_lots', item_id=item.item_id) }}" class="btn btn-link">
+                            <i class="fas fa-plus"></i> さらに{{ related_lots|length - 5 }}件のロットを表示
+                        </a>
+                    </p>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                        <p>このアイテムに関連するロットはまだありません。</p>
+                        <a href="{{ url_for('create_lot') }}?item_id={{ item.item_id }}" class="btn btn-success">
+                            <i class="fas fa-plus"></i> 最初のロットを作成
+                        </a>
+                    </div>
                 {% endif %}
             </div>
         </div>

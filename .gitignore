@@ -21,10 +21,10 @@ wheels/
 *.egg
 MANIFEST
 
-# Database files
-*.db
-*.sqlite
-*.sqlite3
+# Database files - 安定版デモ環境のため一時的にコメントアウト
+# *.db
+# *.sqlite
+# *.sqlite3
 
 # Virtual environment
 venv/

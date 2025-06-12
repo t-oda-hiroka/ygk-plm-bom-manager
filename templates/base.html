@@ -119,6 +119,40 @@
             padding: 10px;
             margin-bottom: 20px;
         }
+        
+        /* パンくずナビゲーション */
+        .breadcrumb {
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .breadcrumb-item {
+            color: #6c757d;
+        }
+        
+        .breadcrumb-item a {
+            color: #0d6efd;
+            text-decoration: none;
+            transition: color 0.15s ease-in-out;
+        }
+        
+        .breadcrumb-item a:hover {
+            color: #0a58ca;
+            text-decoration: underline;
+        }
+        
+        .breadcrumb-item.active {
+            color: #495057;
+            font-weight: 500;
+        }
+        
+        .breadcrumb-item i {
+            margin-right: 0.25rem;
+        }
     </style>
   </head>
 <body>
@@ -141,9 +175,9 @@
     <!-- ナビゲーションバー -->
     <nav class="navbar navbar-expand-lg navbar-dark {% if is_staging %}staging-navbar{% else %}bg-dark{% endif %}">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-cogs"></i> 製造BOM管理システム
-                {% if is_staging %} [{{ environment }}]{% endif %}
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <i class="fas fa-sitemap text-primary"></i>
+                <span class="fw-bold">BOM管理</span>
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -153,8 +187,8 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">
-                            <i class="fas fa-list"></i> アイテム一覧
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="fas fa-home"></i> ホーム
                         </a>
                     </li>
                     <li class="nav-item">
@@ -194,6 +228,31 @@
             </div>
         </div>
     </nav>
+
+    <!-- パンくずナビゲーション -->
+    {% if breadcrumbs %}
+    <div class="container">
+        <nav aria-label="breadcrumb" class="mt-3">
+            <ol class="breadcrumb">
+                {% for breadcrumb in breadcrumbs %}
+                    {% if loop.last %}
+                        <li class="breadcrumb-item active" aria-current="page">
+                            <i class="{{ breadcrumb.icon|default('fas fa-file') }}"></i>
+                            {{ breadcrumb.text }}
+                        </li>
+                    {% else %}
+                        <li class="breadcrumb-item">
+                            <a href="{{ breadcrumb.url }}">
+                                <i class="{{ breadcrumb.icon|default('fas fa-folder') }}"></i>
+                                {{ breadcrumb.text }}
+                            </a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ol>
+        </nav>
+    </div>
+    {% endif %}
 
     <!-- メインコンテンツ -->
     <div class="container mt-4">

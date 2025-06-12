@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.item_name }} - ロット管理{% endblock %}
+
+{% block extra_css %}
+<style>
+.stats-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.lot-status-active {
+    background-color: #28a745;
+}
+
+.lot-status-consumed {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.lot-status-completed {
+    background-color: #17a2b8;
+}
+
+.lot-status-pending {
+    background-color: #6c757d;
+}
+
+.quantity-display {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+}
+
+.filter-card {
+    background-color: #f8f9fa;
+    border-left: 4px solid #007bff;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.item-header {
+    background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+
+.process-badge {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- アイテム情報ヘッダー -->
+    <div class="item-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="mb-2">
+                    <i class="fas fa-cube"></i> {{ item.item_name }}
+                </h1>
+                <p class="mb-1"><strong>アイテムID:</strong> {{ item.item_id }}</p>
+                <p class="mb-1"><strong>タイプ:</strong> {{ item.item_type }}</p>
+                <p class="mb-0"><strong>単位:</strong> {{ item.unit_of_measure }}</p>
+                {% if item.material_type %}
+                <p class="mb-0"><strong>材質:</strong> {{ item.material_type }}</p>
+                {% endif %}
+            </div>
+            <div class="col-md-4 text-right">
+                <a href="{{ url_for('item_details', item_id=item.item_id) }}" class="btn btn-light btn-lg">
+                    <i class="fas fa-info-circle"></i> アイテム詳細
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 統計情報カード -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stat-value">{{ lot_stats.total }}</div>
+                <div>総ロット数</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stat-value">{{ lot_stats.active }}</div>
+                <div>アクティブロット</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stat-value">{{ "%.1f"|format(total_quantity) }}</div>
+                <div>アクティブ総数量 ({{ item.unit_of_measure }})</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stat-value">{{ "%.1f"|format(avg_quantity) }}</div>
+                <div>平均ロット数量</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 詳細統計 -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-pie"></i> ステータス別内訳</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <span class="badge lot-status-active">Active</span> {{ lot_stats.active }}
+                        </div>
+                        <div class="col-6">
+                            <span class="badge lot-status-consumed">Consumed</span> {{ lot_stats.consumed }}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <span class="badge lot-status-completed">Completed</span> {{ lot_stats.completed }}
+                        </div>
+                        <div class="col-6">
+                            <span class="badge lot-status-pending">Pending</span> {{ lot_stats.pending }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-cogs"></i> 工程別内訳</h5>
+                </div>
+                <div class="card-body">
+                    {% for process_code, stats in process_stats.items() %}
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="badge process-badge badge-secondary">{{ process_code }}</span>
+                        <span>{{ stats.process_name }}</span>
+                        <span class="badge badge-primary">{{ stats.count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-award"></i> 品質別内訳</h5>
+                </div>
+                <div class="card-body">
+                    {% for grade, count in quality_stats.items() %}
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span>{{ grade }}</span>
+                        <span class="badge badge-success">{{ count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- フィルタリング -->
+    <div class="filter-card">
+        <form method="GET" action="{{ url_for('item_lots', item_id=item.item_id) }}">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="status">ステータス:</label>
+                    <select class="form-control" id="status" name="status">
+                        <option value="all" {% if current_filters.status == 'all' %}selected{% endif %}>全て</option>
+                        <option value="active" {% if current_filters.status == 'active' %}selected{% endif %}>Active</option>
+                        <option value="consumed" {% if current_filters.status == 'consumed' %}selected{% endif %}>Consumed</option>
+                        <option value="completed" {% if current_filters.status == 'completed' %}selected{% endif %}>Completed</option>
+                        <option value="pending" {% if current_filters.status == 'pending' %}selected{% endif %}>Pending</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="process">工程:</label>
+                    <select class="form-control" id="process" name="process">
+                        <option value="all" {% if current_filters.process == 'all' %}selected{% endif %}>全て</option>
+                        {% for process in processes %}
+                        <option value="{{ process.code }}" {% if current_filters.process == process.code %}selected{% endif %}>
+                            {{ process.code }} - {{ process.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="search">検索:</label>
+                    <input type="text" class="form-control" id="search" name="search" 
+                           value="{{ current_filters.search }}" placeholder="ロットID、場所、作業者で検索">
+                </div>
+                <div class="col-md-2">
+                    <label>&nbsp;</label>
+                    <div>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <i class="fas fa-filter"></i> フィルタ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- ロット一覧 -->
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <h2><i class="fas fa-boxes"></i> ロット一覧 ({{ lots|length }}件)</h2>
+        </div>
+        <div class="col-md-6 text-right">
+            <a href="{{ url_for('create_lot') }}?item_id={{ item.item_id }}" class="btn btn-success">
+                <i class="fas fa-plus"></i> 新規ロット作成
+            </a>
+        </div>
+    </div>
+
+    {% if lots %}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="thead-dark">
+                <tr>
+                    <th>ロットID</th>
+                    <th>ステータス</th>
+                    <th>工程</th>
+                    <th>数量</th>
+                    <th>品質</th>
+                    <th>場所</th>
+                    <th>生産日</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lot in lots %}
+                <tr>
+                    <td><strong>{{ lot.lot_id }}</strong></td>
+                    <td>
+                        <span class="badge lot-status-{{ lot.lot_status }}">
+                            {{ lot.lot_status|title }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge process-badge badge-info">{{ lot.process_code }}</span>
+                        <br><small>{{ lot.process_name }}</small>
+                    </td>
+                    <td class="quantity-display">
+                        {{ "%.1f"|format(lot.current_quantity) }} {{ lot.unit_of_measure }}
+                    </td>
+                    <td>
+                        <span class="badge badge-success">{{ lot.grade_name }}</span>
+                    </td>
+                    <td>{{ lot.location or '-' }}</td>
+                    <td>{{ lot.production_date or '-' }}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{{ url_for('lot_details', lot_id=lot.lot_id) }}" 
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-info-circle"></i> 詳細
+                            </a>
+                            <a href="{{ url_for('lot_genealogy', lot_id=lot.lot_id) }}" 
+                               class="btn btn-outline-info btn-sm">
+                                <i class="fas fa-project-diagram"></i> 系統図
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info text-center">
+        <h4><i class="fas fa-info-circle"></i> ロットが見つかりません</h4>
+        <p>このアイテムに関連するロットがありません。</p>
+        <a href="{{ url_for('create_lot') }}?item_id={{ item.item_id }}" class="btn btn-success">
+            <i class="fas fa-plus"></i> 最初のロットを作成
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- フッター情報 -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card bg-light">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-info-circle"></i> アイテム情報</h6>
+                            <small>
+                                <strong>作成日:</strong> {{ item.created_at or '不明' }}<br>
+                                <strong>更新日:</strong> {{ item.updated_at or '不明' }}
+                            </small>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-database"></i> データ統計</h6>
+                            <small>
+                                <strong>総在庫量:</strong> {{ "%.1f"|format(total_quantity) }} {{ item.unit_of_measure }}<br>
+                                <strong>平均ロット:</strong> {{ "%.1f"|format(avg_quantity) }} {{ item.unit_of_measure }}
+                            </small>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-link"></i> 関連機能</h6>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('bom_tree', item_id=item.item_id) }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-sitemap"></i> BOM構造
+                                </a>
+                                <a href="{{ url_for('add_bom') }}?parent_item_id={{ item.item_id }}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-plus"></i> BOM追加
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

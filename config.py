@@ -55,6 +55,9 @@ class DevelopmentConfig(Config):
     ENABLE_PROFILER = True
     ENABLE_SAMPLE_DATA = True  # サンプルデータを有効化
     
+    # Oracle直接参照モード（リードオンリー）
+    ORACLE_DIRECT_MODE = True  # Oracle DB直接参照を有効化
+    
     # Oracle接続（開発用）
     ORACLE_ENABLED = True
     ORACLE_CONNECTION_STRING = os.environ.get('ORACLE_DEV_CONNECTION')

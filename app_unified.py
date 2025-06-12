@@ -1,10 +1,12 @@
 """
 釣り糸製造BOM管理システム 統合アプリケーション
 環境設定に基づく自動切り替え対応
+Oracle DB直接参照モード対応（リードオンリー）
 """
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from bom_manager import BOMManager
+from oracle_bom_manager import OracleBOMManager
 import sqlite3
 import os
 import sys
@@ -22,14 +24,24 @@ def create_app(environment=None):
     # 設定の初期化
     config_class.init_app(app)
     
-    # BOMマネージャーの初期化
-    bom_manager = BOMManager(app.config['DATABASE_PATH'])
+    # Oracle直接参照モードの判定
+    oracle_direct_mode = app.config.get('ORACLE_DIRECT_MODE', False)
     
-    # データベース初期化
-    init_database(app)
+    if oracle_direct_mode:
+        # Oracle直接参照BOM管理システムを使用（リードオンリー）
+        bom_manager = OracleBOMManager(fallback_db_path=app.config['DATABASE_PATH'])
+        print(f"🌐 Oracle直接参照モード: リードオンリー動作")
+    else:
+        # 通常のBOM管理システムを使用
+        bom_manager = BOMManager(app.config['DATABASE_PATH'])
+        print(f"💾 通常モード: SQLite DB使用")
+    
+    # データベース初期化（通常モードのみ）
+    if not oracle_direct_mode:
+        init_database(app)
     
     # ルートの登録
-    register_routes(app, bom_manager)
+    register_routes(app, bom_manager, oracle_direct_mode)
     
     return app
 
@@ -184,12 +196,65 @@ def create_basic_sample_data(database_path):
         conn.close()
 
 
-def register_routes(app, bom_manager):
+def register_routes(app, bom_manager, oracle_direct_mode):
     """ルートの登録"""
     
     @app.route('/')
-    def index():
-        """メインページ"""
+    def dashboard():
+        """ダッシュボード（メインページ）"""
+        # 統計データを取得
+        all_items = get_items_by_type(bom_manager, 'all')
+        all_lots = bom_manager.get_all_lots(limit=1000)
+        
+        # 基本統計
+        total_items_count = len(all_items)
+        oracle_items_count = count_oracle_items(all_items)
+        total_lots_count = len(all_lots)
+        active_lots_count = len([lot for lot in all_lots if lot['lot_status'] == 'active'])
+        
+        # アイテムタイプ別統計
+        item_type_stats = calculate_item_stats(all_items, app.config['ITEM_TYPES'])
+        
+        # BOM構成数を取得
+        total_bom_components = 0
+        try:
+            with sqlite3.connect(bom_manager.db_path) as conn:
+                cursor = conn.execute("SELECT COUNT(*) FROM bom_components")
+                total_bom_components = cursor.fetchone()[0]
+        except:
+            pass
+        
+        # 系統図関係数を取得
+        total_genealogy_relations = 0
+        try:
+            with sqlite3.connect(bom_manager.db_path) as conn:
+                cursor = conn.execute("SELECT COUNT(*) FROM lot_genealogy")
+                total_genealogy_relations = cursor.fetchone()[0]
+        except:
+            pass
+        
+        # テンプレート変数
+        template_vars = {
+            'total_items_count': total_items_count,
+            'oracle_items_count': oracle_items_count,
+            'total_lots_count': total_lots_count,
+            'active_lots_count': active_lots_count,
+            'total_bom_components': total_bom_components,
+            'total_genealogy_relations': total_genealogy_relations,
+            'item_type_stats': item_type_stats,
+            'environment': app.config['ENVIRONMENT'],
+            'version': app.config['VERSION'],
+        }
+        
+        # 環境固有の変数
+        if app.config.get('SHOW_ENVIRONMENT_BANNER'):
+            template_vars['is_staging'] = True
+        
+        return render_template('dashboard.html', **template_vars)
+
+    @app.route('/items')
+    def items_list():
+        """アイテム一覧ページ"""
         # フィルタリング用のパラメータを取得
         item_type_filter = request.args.get('item_type', 'all')
         search_query = request.args.get('search', '').strip()
@@ -206,6 +271,12 @@ def register_routes(app, bom_manager):
         item_type_stats = calculate_item_stats(all_items, app.config['ITEM_TYPES'])
         oracle_items_count = count_oracle_items(items)
         
+        # パンくず作成
+        breadcrumbs = create_breadcrumbs(
+            get_home_breadcrumb(),
+            get_items_list_breadcrumb()
+        )
+        
         # 環境に応じたテンプレート変数
         template_vars = {
             'items': items,
@@ -215,6 +286,7 @@ def register_routes(app, bom_manager):
             'oracle_items_count': oracle_items_count,
             'total_items_count': len(items),
             'item_type_stats': item_type_stats,
+            'breadcrumbs': breadcrumbs,
             'environment': app.config['ENVIRONMENT'],
             'version': app.config['VERSION'],
         }
@@ -223,7 +295,7 @@ def register_routes(app, bom_manager):
         if app.config.get('SHOW_ENVIRONMENT_BANNER'):
             template_vars['is_staging'] = True
         
-        return render_template('index.html', **template_vars)
+        return render_template('items_list.html', **template_vars)
     
     
     @app.route('/item_details/<item_id>')
@@ -232,13 +304,34 @@ def register_routes(app, bom_manager):
         item = bom_manager.get_item(item_id)
         if not item:
             flash(f'アイテム "{item_id}" が見つかりませんでした。', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('items_list'))
         
         components = bom_manager.get_direct_components(item_id)
+        
+        # このアイテムに関連するロット一覧を取得
+        related_lots = bom_manager.get_lots_by_item(item_id)
+        
+        # ロット状態別の統計
+        lot_stats = {
+            'total': len(related_lots),
+            'active': len([lot for lot in related_lots if lot['lot_status'] == 'active']),
+            'consumed': len([lot for lot in related_lots if lot['lot_status'] == 'consumed']),
+            'completed': len([lot for lot in related_lots if lot['lot_status'] == 'completed'])
+        }
+        
+        # パンくず作成
+        breadcrumbs = create_breadcrumbs(
+            get_home_breadcrumb(),
+            get_items_list_breadcrumb(),
+            get_item_breadcrumb(item)
+        )
         
         template_vars = {
             'item': item,
             'components': components,
+            'related_lots': related_lots,
+            'lot_stats': lot_stats,
+            'breadcrumbs': breadcrumbs,
             'environment': app.config['ENVIRONMENT'],
         }
         
@@ -254,13 +347,22 @@ def register_routes(app, bom_manager):
         item = bom_manager.get_item(item_id)
         if not item:
             flash(f'アイテム "{item_id}" が見つかりませんでした。', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('items_list'))
         
         bom_structure = bom_manager.get_multi_level_bom(item_id)
+        
+        # パンくず作成
+        breadcrumbs = create_breadcrumbs(
+            get_home_breadcrumb(),
+            get_items_list_breadcrumb(),
+            get_item_breadcrumb(item),
+            {'text': 'BOM構造', 'url': None, 'icon': 'fas fa-project-diagram'}
+        )
         
         template_vars = {
             'item': item,
             'bom_structure': bom_structure,
+            'breadcrumbs': breadcrumbs,
             'environment': app.config['ENVIRONMENT'],
         }
         
@@ -268,6 +370,105 @@ def register_routes(app, bom_manager):
             template_vars['is_staging'] = True
             
         return render_template('bom_tree.html', **template_vars)
+    
+    
+    @app.route('/items/<item_id>/lots')
+    def item_lots(item_id):
+        """アイテム専用ロット管理画面"""
+        item = bom_manager.get_item(item_id)
+        if not item:
+            flash(f'アイテム "{item_id}" が見つかりませんでした。', 'error')
+            return redirect(url_for('items_list'))
+        
+        # フィルタリング用のパラメータを取得
+        status_filter = request.args.get('status', 'all')
+        process_filter = request.args.get('process', 'all')
+        search_query = request.args.get('search', '').strip()
+        
+        # このアイテムに関連するロット一覧を取得
+        lots = bom_manager.get_lots_by_item(item_id, status=None)  # 全ステータス取得
+        
+        # フィルタリング適用
+        if status_filter != 'all':
+            lots = [lot for lot in lots if lot['lot_status'] == status_filter]
+        
+        if process_filter != 'all':
+            lots = [lot for lot in lots if lot['process_code'] == process_filter]
+        
+        if search_query:
+            lots = [lot for lot in lots if 
+                   search_query.lower() in lot['lot_id'].lower() or
+                   search_query.lower() in lot.get('location', '').lower() or
+                   search_query.lower() in lot.get('operator_id', '').lower()]
+        
+        # 統計情報計算
+        all_lots = bom_manager.get_lots_by_item(item_id, status=None)
+        lot_stats = {
+            'total': len(all_lots),
+            'active': len([lot for lot in all_lots if lot['lot_status'] == 'active']),
+            'consumed': len([lot for lot in all_lots if lot['lot_status'] == 'consumed']),
+            'completed': len([lot for lot in all_lots if lot['lot_status'] == 'completed']),
+            'pending': len([lot for lot in all_lots if lot['lot_status'] == 'pending'])
+        }
+        
+        # 工程別統計
+        process_stats = {}
+        for lot in all_lots:
+            process = lot['process_code']
+            if process not in process_stats:
+                process_stats[process] = {'count': 0, 'process_name': lot['process_name']}
+            process_stats[process]['count'] += 1
+        
+        # 品質グレード別統計
+        quality_stats = {}
+        for lot in all_lots:
+            grade = lot.get('grade_name', '未設定')
+            quality_stats[grade] = quality_stats.get(grade, 0) + 1
+        
+        # 数量統計
+        total_quantity = sum([lot['current_quantity'] for lot in all_lots if lot['lot_status'] == 'active'])
+        avg_quantity = total_quantity / len(all_lots) if len(all_lots) > 0 else 0
+        
+        # フィルタ用選択肢取得
+        processes_seen = set()
+        processes = []
+        for lot in all_lots:
+            process_code = lot['process_code']
+            if process_code not in processes_seen:
+                processes.append({'code': process_code, 'name': lot['process_name']})
+                processes_seen.add(process_code)
+        processes = sorted(processes, key=lambda x: x['code'])
+        
+        # パンくず作成
+        breadcrumbs = create_breadcrumbs(
+            get_home_breadcrumb(),
+            get_items_list_breadcrumb(),
+            get_item_breadcrumb(item),
+            {'text': 'ロット管理', 'url': None, 'icon': 'fas fa-layer-group'}
+        )
+        
+        template_vars = {
+            'item': item,
+            'lots': lots,
+            'lot_stats': lot_stats,
+            'process_stats': process_stats,
+            'quality_stats': quality_stats,
+            'total_quantity': total_quantity,
+            'avg_quantity': avg_quantity,
+            'processes': processes,
+            'breadcrumbs': breadcrumbs,
+            'current_filters': {
+                'status': status_filter,
+                'process': process_filter,
+                'search': search_query
+            },
+            'environment': app.config['ENVIRONMENT'],
+        }
+        
+        if app.config.get('SHOW_ENVIRONMENT_BANNER'):
+            template_vars['is_staging'] = True
+            
+        return render_template('items/lots.html', **template_vars)
     
     
     @app.route('/add_item', methods=['GET', 'POST'])
@@ -298,7 +499,7 @@ def register_routes(app, bom_manager):
                 
                 if success:
                     flash(f'アイテム "{item_name}" を追加しました。', 'success')
-                    return redirect(url_for('index'))
+                    return redirect(url_for('items_list'))
                 else:
                     flash('アイテムの追加に失敗しました。', 'error')
         
@@ -457,6 +658,12 @@ def register_routes(app, bom_manager):
                 processes_seen.add(process_code)
         processes = sorted(processes, key=lambda x: x['code'])
         
+        # パンくず作成
+        breadcrumbs = create_breadcrumbs(
+            get_home_breadcrumb(),
+            get_lots_list_breadcrumb()
+        )
+        
         return render_template('lots/list.html',
                              lots=lots,
                              total_lots=total_lots,
@@ -465,6 +672,7 @@ def register_routes(app, bom_manager):
                              process_stats=process_stats,
                              item_types=sorted(item_types),
                              processes=processes,
+                             breadcrumbs=breadcrumbs,
                              current_filters={
                                  'item_type': item_type_filter,
                                  'status': status_filter,
@@ -579,11 +787,19 @@ def register_routes(app, bom_manager):
             """, (lot_id,))
             used_in_lots = [dict(row) for row in cursor.fetchall()]
         
+        # パンくず作成
+        breadcrumbs = create_breadcrumbs(
+            get_home_breadcrumb(),
+            get_lots_list_breadcrumb(),
+            get_lot_breadcrumb(lot)
+        )
+        
         return render_template('lots/details.html',
                              lot=lot,
                              transactions=transactions,
                              consumed_materials=consumed_materials,
-                             used_in_lots=used_in_lots)
+                             used_in_lots=used_in_lots,
+                             breadcrumbs=breadcrumbs)
     
     @app.route('/lots/<lot_id>/genealogy')
     def lot_genealogy(lot_id):
@@ -597,10 +813,19 @@ def register_routes(app, bom_manager):
         forward_tree = bom_manager.get_lot_genealogy_tree(lot_id, 'forward')
         backward_tree = bom_manager.get_lot_genealogy_tree(lot_id, 'backward')
         
+        # パンくず作成
+        breadcrumbs = create_breadcrumbs(
+            get_home_breadcrumb(),
+            get_lots_list_breadcrumb(),
+            get_lot_breadcrumb(lot),
+            {'text': '系統図', 'url': None, 'icon': 'fas fa-sitemap'}
+        )
+        
         return render_template('lots/genealogy.html',
                              lot=lot,
                              forward_tree=forward_tree,
-                             backward_tree=backward_tree)
+                             backward_tree=backward_tree,
+                             breadcrumbs=breadcrumbs)
     
     @app.route('/lots/<lot_id>/consume', methods=['GET', 'POST'])
     def consume_lot(lot_id):
@@ -745,6 +970,67 @@ def collect_extended_attributes(form_data):
                 pass  # 無効な値は無視
     
     return attributes
+
+
+def create_breadcrumbs(*breadcrumbs_data):
+    """パンくずナビゲーションを作成するヘルパー関数
+    
+    Args:
+        *breadcrumbs_data: (text, url, icon) のタプルまたは辞書のリスト
+    
+    Returns:
+        list: パンくず情報のリスト
+    """
+    breadcrumbs = []
+    
+    for breadcrumb in breadcrumbs_data:
+        if isinstance(breadcrumb, tuple):
+            if len(breadcrumb) == 2:
+                text, url = breadcrumb
+                icon = None
+            elif len(breadcrumb) == 3:
+                text, url, icon = breadcrumb
+            else:
+                continue
+            
+            breadcrumbs.append({
+                'text': text,
+                'url': url,
+                'icon': icon
+            })
+        elif isinstance(breadcrumb, dict):
+            breadcrumbs.append(breadcrumb)
+    
+    return breadcrumbs
+
+
+def get_home_breadcrumb():
+    """ホームのパンくず"""
+    return {'text': 'ホーム', 'url': url_for('dashboard'), 'icon': 'fas fa-home'}
+
+
+def get_items_list_breadcrumb():
+    """アイテム一覧のパンくず"""
+    return {'text': 'アイテム一覧', 'url': url_for('items_list'), 'icon': 'fas fa-list'}
+
+
+def get_item_breadcrumb(item):
+    """アイテム詳細のパンくず"""
+    display_name = item['item_name']
+    if len(display_name) > 30:
+        display_name = display_name[:27] + '...'
+    
+    return {'text': display_name, 'url': url_for('item_details', item_id=item['item_id']), 'icon': 'fas fa-cube'}
+
+
+def get_lots_list_breadcrumb():
+    """ロット一覧のパンくず"""
+    return {'text': 'ロット一覧', 'url': url_for('lots_list'), 'icon': 'fas fa-layer-group'}
+
+
+def get_lot_breadcrumb(lot):
+    """ロット詳細のパンくず"""
+    return {'text': lot['lot_id'], 'url': url_for('lot_details', lot_id=lot['lot_id']), 'icon': 'fas fa-box'}
 
 
 if __name__ == '__main__':
